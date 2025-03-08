@@ -13,34 +13,36 @@ import AudioPlayer from "./components/AudioPlayer.tsx";
 import { ThemeProvider } from './contexts/ThemeContext.tsx';
 import { StopwatchProvider } from './contexts/StopwatchContext.tsx';
 import { AuthProvider } from './contexts/AuthContext.tsx';
+import { ToastProvider } from './contexts/ToastContext.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 export const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <StopwatchProvider>
-          <BrowserRouter>
-            <ErrorBoundary>
-              <Routes>
-                <Route path="/" element={<Home />}>
-                  <Route index element={<HomeTab />} />
-                  <Route path="works" element={<WorksTab />} />
-                  <Route path="agenda" element={<AgendaTab />} />
-                  <Route path="routine" element={<RoutineTab />} />
-                  <Route path="bucket" element={<BucketTab />} />
-                  <Route path="profile" element={<Profile />} />
-                  <Route path="report" element={<Report />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/audio-player" element={<AudioPlayer />} />
-                </Route>
-                
-              </Routes>
-            </ErrorBoundary>
-          </BrowserRouter>
-        </StopwatchProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <StopwatchProvider>
+            <BrowserRouter>
+              <ErrorBoundary>
+                <Routes>
+                  <Route path="/" element={<Home />}>
+                    <Route index element={<HomeTab />} />
+                    <Route path="works" element={<WorksTab />} />
+                    <Route path="agenda" element={<AgendaTab />} />
+                    <Route path="routine" element={<RoutineTab />} />
+                    <Route path="bucket" element={<BucketTab />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="report" element={<Report />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/audio-player" element={<AudioPlayer />} />
+                  </Route>
+                </Routes>
+              </ErrorBoundary>
+            </BrowserRouter>
+          </StopwatchProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 };
 

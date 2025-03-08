@@ -1,27 +1,25 @@
 {
-  "indexes": [
+  "indexes": [],
+  "fieldOverrides": [
     {
-      "collectionGroup": "tasbeehs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "order", "order": "ASCENDING" }
+      "collectionGroup": "users",
+      "fieldPath": "playlist",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
       ]
     },
     {
-      "collectionGroup": "items",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "order", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "sharedBucketItems",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "description", "order": "ASCENDING" }
+      "collectionGroup": "users",
+      "fieldPath": "localPlaylist",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
       ]
     }
-  ],
-  "fieldOverrides": []
+  ]
 }
