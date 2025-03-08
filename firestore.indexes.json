@@ -1,0 +1,27 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "tasbeehs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sharedBucketItems",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "description", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

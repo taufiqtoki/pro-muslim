@@ -1,0 +1,29 @@
+{
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "react"],
+  "rules": {
+    // ...existing rules...
+    "no-console": "off", // Example: Ignore console statements
+    "@typescript-eslint/no-explicit-any": "off", // Example: Allow usage of 'any' type
+    "react/prop-types": "off" // Example: Disable prop-types rule for React components
+  },
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "rules": {
+        "@typescript-eslint/explicit-module-boundary-types": "off" // Example: Ignore explicit module boundary types for TypeScript files
+      }
+    },
+    {
+      "files": ["*.js", "*.jsx"],
+      "rules": {
+        "no-unused-vars": "off" // Example: Ignore unused variables for JavaScript files
+      }
+    }
+  ]
+}
