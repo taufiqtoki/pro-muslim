@@ -19,8 +19,10 @@ import { usePlaylist } from '../hooks/usePlaylist.ts';
 import { playlistService } from '../services/playlistService.ts';
 import { Track } from '../types/playlist.ts';
 import { useAuth } from '../hooks/useAuth.ts';
-import { storeFile, getFile, deleteFile } from '../utils/indexedDB.ts';
 import { useToast } from '../contexts/ToastContext.tsx';
+import { db } from '../firebase.ts';
+import { getVideoDetails, validateYouTubeUrl } from '../utils/youtube.ts';
+import { getAudioMetadata } from '../utils/audioMetadata.ts';
 
 const AudioPlayer: React.FC = () => {
     const { showToast } = useToast();
@@ -40,7 +42,7 @@ const AudioPlayer: React.FC = () => {
     const theme = useTheme();
     const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
     const [currentPlaylistId, setCurrentPlaylistId] = useState<string>('default');
-    const { playlist, loading, error, addTrack, removeTrack, updateTrack } = usePlaylist(currentPlaylistId);
+    const { playlist, loading, error, addTrack, removeTrack, updateTrack, refreshPlaylist } = usePlaylist(currentPlaylistId);
 
     const handleCreatePlaylist = async () => {
         if (user && newPlaylistName) {
@@ -61,22 +63,20 @@ const AudioPlayer: React.FC = () => {
         if (!newTrackUrl) return;
         
         try {
-            // Fixed regex pattern without unnecessary escape
-            const videoId = newTrackUrl.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([^"&?\s]{11})/)?.[1];
-            
+            const videoId = validateYouTubeUrl(newTrackUrl);
             if (!videoId) {
                 showToast('Invalid YouTube URL', 'error');
                 return;
             }
 
-            const trackData = await fetchTrackDetails(videoId);
+            const trackData = await getVideoDetails(videoId);
             if (trackData) {
                 const newTrack: Track = {
                     id: Date.now().toString(),
                     url: newTrackUrl,
-                    name: trackData.name || 'Untitled',
-                    duration: trackData.duration || 0,
-                    thumbnail: trackData.thumbnail || '',
+                    name: trackData.name,
+                    duration: trackData.duration,
+                    thumbnail: trackData.thumbnail,
                     addedAt: Date.now(),
                     type: 'youtube'
                 };
@@ -84,7 +84,6 @@ const AudioPlayer: React.FC = () => {
                 await addTrack(newTrack);
                 showToast('Track added successfully', 'success');
                 setNewTrackUrl('');
-                setCurrentPlaylistId('default'); // Ensure we're on default playlist
             }
         } catch (error) {
             showToast('Error adding track', 'error');
@@ -92,13 +91,79 @@ const AudioPlayer: React.FC = () => {
         }
     };
 
+    useEffect(() => {
+        const loadFavorites = async () => {
+            if (user) {
+                try {
+                    const userRef = doc(db, `users/${user.uid}`);
+                    const userDoc = await getDoc(userRef);
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data();
+                        setFavorites(userData.favorites || []);
+                        // Sync with localStorage
+                        localStorage.setItem('favorites', JSON.stringify(userData.favorites || []));
+                    }
+                } catch (error) {
+                    console.error('Error loading favorites:', error);
+                    showToast('Error loading favorites', 'error');
+                }
+            } else {
+                // Load from localStorage if no user
+                const localFavorites = localStorage.getItem('favorites');
+                if (localFavorites) {
+                    setFavorites(JSON.parse(localFavorites));
+                }
+            }
+        };
+
+        loadFavorites();
+    }, [user]);
+
     const toggleFavorite = async (trackId: string) => {
-        if (!user) return;
-        const isFavorite = favorites.includes(trackId);
-        await playlistService.toggleFavorite(user.uid, trackId, !isFavorite);
-        setFavorites(prev => 
-            isFavorite ? prev.filter(id => id !== trackId) : [...prev, trackId]
-        );
+        try {
+            const isFavorite = favorites.includes(trackId);
+            const newFavorites = isFavorite 
+                ? favorites.filter(id => id !== trackId)
+                : [...favorites, trackId];
+
+            // Update local state immediately
+            setFavorites(newFavorites);
+            
+            // Save to localStorage
+            localStorage.setItem('favorites', JSON.stringify(newFavorites));
+
+            // If user is logged in, sync with Firestore
+            if (user) {
+                try {
+                    await playlistService.toggleFavorite(user.uid, trackId, !isFavorite);
+                } catch (error) {
+                    // Revert local state if Firestore update fails
+                    setFavorites(favorites);
+                    localStorage.setItem('favorites', JSON.stringify(favorites));
+                    throw error;
+                }
+            }
+
+            showToast(
+                isFavorite ? 'Removed from favorites' : 'Added to favorites',
+                'success'
+            );
+
+            // If we're in favorites playlist and removing from favorites,
+            // remove the track from the current view
+            if (currentPlaylistId === 'favorites' && isFavorite) {
+                await removeTrack(trackId);
+            }
+
+            // Refresh the playlist if we're in favorites view
+            if (currentPlaylistId === 'favorites') {
+                refreshPlaylist();
+            }
+
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+            showToast('Error updating favorites', 'error');
+        }
     };
 
     const renderPlaylistSelector = () => (
@@ -145,25 +210,82 @@ const AudioPlayer: React.FC = () => {
             key={track.id}
             sx={{
                 backgroundColor: index === currentTrackIndex ? 'action.selected' : 'inherit',
+                cursor: 'pointer',
+                '&:hover': {
+                    backgroundColor: 'action.hover',
+                },
             }}
-            onClick={() => handleTrackSelection(index)}
         >
-            <TableCell>{/^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)/.test(track.url) ? <LanguageIcon /> : <InsertDriveFileIcon />}</TableCell>
+            <TableCell>{track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}</TableCell>
             {!isSmallScreen && <TableCell>{index + 1}</TableCell>}
-            <TableCell>{track.name || ''}</TableCell>
+            <TableCell 
+                onClick={() => handleTrackSelection(index)}
+                sx={{ cursor: 'pointer' }}
+            >
+                {track.name || ''}
+            </TableCell>
             <TableCell>{formatTime(track.duration)}</TableCell>
             <TableCell>
-                <Box display="flex" flexDirection={isSmallScreen ? 'column' : 'row'}>
-                    <IconButton onClick={() => handleTrackSelection(index)}>
+                <Box 
+                    display="flex" 
+                    flexDirection={isSmallScreen ? 'column' : 'row'}
+                    gap={1}
+                    sx={{ minWidth: isSmallScreen ? 'auto' : '200px' }}
+                >
+                    <IconButton 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleTrackSelection(index);
+                        }}
+                        sx={{ 
+                            padding: '12px',
+                            '@media (max-width: 600px)': {
+                                padding: '8px',
+                            }
+                        }}
+                    >
                         <PlayArrowIcon />
                     </IconButton>
-                    <IconButton onClick={() => toggleFavorite(track.id)}>
+                    <IconButton 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(track.id);
+                        }}
+                        sx={{ 
+                            padding: '12px',
+                            '@media (max-width: 600px)': {
+                                padding: '8px',
+                            }
+                        }}
+                    >
                         {favorites.includes(track.id) ? <FavoriteIcon color="error" /> : <FavoriteBorderIcon />}
                     </IconButton>
-                    <IconButton onClick={() => updateTrack(track.id, { name: prompt('New Track Name:', track.name) || track.name })}>
+                    <IconButton 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            updateTrack(track.id, { name: prompt('New Track Name:', track.name) || track.name });
+                        }}
+                        sx={{ 
+                            padding: '12px',
+                            '@media (max-width: 600px)': {
+                                padding: '8px',
+                            }
+                        }}
+                    >
                         <EditIcon />
                     </IconButton>
-                    <IconButton onClick={() => handleRemoveTrack(track.id)}>
+                    <IconButton 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveTrack(track.id);
+                        }}
+                        sx={{ 
+                            padding: '12px',
+                            '@media (max-width: 600px)': {
+                                padding: '8px',
+                            }
+                        }}
+                    >
                         <DeleteIcon />
                     </IconButton>
                 </Box>
@@ -291,27 +413,22 @@ const AudioPlayer: React.FC = () => {
         if (!file) return;
 
         try {
-            const fileId = `local_${Date.now()}`;
-            await storeFile(fileId, file);
+            const metadata = await getAudioMetadata(file);
+            const newTrack: Track = {
+                id: `local_${Date.now()}`,
+                url: metadata.fileUrl,
+                name: metadata.name,
+                duration: metadata.duration,
+                thumbnail: '',
+                addedAt: Date.now(),
+                type: 'local',
+                metadata: {
+                    lastModified: metadata.lastModified,
+                    size: metadata.size
+                }
+            };
             
-            // Create audio element to get duration
-            const audio = new Audio(URL.createObjectURL(file));
-            await new Promise((resolve) => {
-                audio.addEventListener('loadedmetadata', () => {
-                    const newTrack: Track = {
-                        id: fileId,
-                        url: fileId, // Store fileId instead of blob URL
-                        name: file.name,
-                        duration: audio.duration,
-                        thumbnail: '',
-                        addedAt: Date.now(),
-                        type: 'local'
-                    };
-                    
-                    addTrack(newTrack);
-                    resolve(true);
-                });
-            });
+            await addTrack(newTrack);
             showToast('Local track added successfully', 'success');
         } catch (error) {
             showToast('Error adding local track', 'error');
@@ -320,31 +437,54 @@ const AudioPlayer: React.FC = () => {
     };
 
     const handlePlayTrack = async (track: Track) => {
-        if (track.type === 'local') {
-            try {
-                const file = await getFile(track.url) as File;
-                if (file) {
-                    const blobUrl = URL.createObjectURL(file);
+        try {
+            if (track.type === 'youtube') {
+                const videoId = validateYouTubeUrl(track.url);
+                if (videoId) {
+                    setYoutubeVideoId(videoId);
                     if (audioRef.current) {
-                        audioRef.current.src = blobUrl;
-                        audioRef.current.play();
+                        audioRef.current.src = '';
                     }
                 }
-            } catch (error) {
-                console.error('Error playing local file:', error);
+            } else if (track.type === 'local') {
+                setYoutubeVideoId(null);
+                if (audioRef.current) {
+                    audioRef.current.src = track.url;
+                    await audioRef.current.play();
+                }
             }
+        } catch (error) {
+            console.error('Error playing track:', error);
+            showToast('Error playing track', 'error');
         }
-        // ... handle other track types
     };
 
     const handleRemoveTrack = async (trackId: string) => {
         try {
             const track = playlist?.tracks.find(t => t.id === trackId);
             if (track?.type === 'local') {
-                await deleteFile(track.url);
+                // Revoke the object URL when removing a local track
+                URL.revokeObjectURL(track.url);
             }
+
+            // Remove from favorites if it's favorited
+            if (favorites.includes(trackId)) {
+                const newFavorites = favorites.filter(id => id !== trackId);
+                setFavorites(newFavorites);
+                localStorage.setItem('favorites', JSON.stringify(newFavorites));
+                if (user) {
+                    await playlistService.toggleFavorite(user.uid, trackId, false);
+                }
+            }
+
             await removeTrack(trackId);
             showToast('Track removed successfully', 'success');
+            
+            // Force refresh if in favorites playlist
+            if (currentPlaylistId === 'favorites') {
+                refreshPlaylist();
+            }
+
         } catch (error) {
             showToast('Error removing track', 'error');
             console.error('Error removing track:', error);

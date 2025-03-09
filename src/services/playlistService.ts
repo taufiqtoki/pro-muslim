@@ -46,9 +46,22 @@ export const playlistService = {
   // Toggle favorite
   async toggleFavorite(userId: string, trackId: string, isFavorite: boolean): Promise<void> {
     const userRef = doc(db, `users/${userId}`);
-    await updateDoc(userRef, {
-      favorites: isFavorite ? arrayUnion(trackId) : arrayRemove(trackId)
-    });
+    
+    try {
+        // First ensure the favorites array exists
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) {
+            await setDoc(userRef, { favorites: [] });
+        }
+        
+        // Then update it
+        await updateDoc(userRef, {
+            favorites: isFavorite ? arrayUnion(trackId) : arrayRemove(trackId)
+        });
+    } catch (error) {
+        console.error('Error toggling favorite:', error);
+        throw error;
+    }
   },
 
   // Sync local tracks

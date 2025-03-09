@@ -6,6 +6,10 @@ export interface Track {
   thumbnail: string;
   addedAt: number;
   type: 'youtube' | 'local';
+  metadata?: {
+    lastModified: number;
+    size: number;
+  };
 }
 
 export interface Playlist {
