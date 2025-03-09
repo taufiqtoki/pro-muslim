@@ -13,10 +13,10 @@ const InnerToastProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { enqueueSnackbar } = useSnackbar();
 
   const showToast = (message: string, variant: VariantType = 'default') => {
-    enqueueSnackbar(message, {
+    enqueueSnackbar(message, { 
       variant,
       anchorOrigin: { vertical: 'top', horizontal: 'center' },
-      autoHideDuration: 3000  // 3 seconds
+      autoHideDuration: 3000
     });
   };
 
@@ -29,10 +29,7 @@ const InnerToastProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <SnackbarProvider 
-      maxSnack={3} 
-      autoHideDuration={3000}  // Add default duration here as well
-    >
+    <SnackbarProvider maxSnack={3}>
       <InnerToastProvider>
         {children}
       </InnerToastProvider>
@@ -40,4 +37,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
-export const useToast = () => useContext(ToastContext);
+export const useToast = () => {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
+};

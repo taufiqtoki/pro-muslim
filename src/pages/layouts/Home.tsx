@@ -8,7 +8,7 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import { useAuth } from '../../hooks/useAuth.ts';
 import BottomNavigation from "../../components/Navigation/BottomNavigation.tsx";
-import AuthModal from '../../components/auth/AuthModal.tsx';
+import AuthModal from '../../components/AuthModal.tsx';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export const Home: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   const isPC = useMediaQuery(theme.breakpoints.up('md'));
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -94,15 +95,19 @@ export const Home: React.FC = () => {
               </Menu>
             </>
           ) : (
-            <Button
-              onClick={() => setIsAuthModalOpen(true)}
-              sx={{ 
-                color: 'text.primary',
-                mr: 1
-              }}
-            >
-              Sign In
-            </Button>
+            <>
+              <Button
+                onClick={() => {
+                  setIsAuthModalOpen(true);
+                }}
+                sx={{ 
+                  color: 'text.primary',
+                  mr: 1
+                }}
+              >
+                Sign In
+              </Button>
+            </>
           )}
 
           <Tooltip title={isDark ? "Light mode" : "Dark mode"}>

@@ -9,3 +9,14 @@
 {for responsiveness:divide stopwatch by 4 parts in 3 will be stop watch, then there will be a horizontal line after that line there will a top heading"extra", then below will be the icoons of calculator , timer and AudioPlayer.
 put complete stopwatchcomponet and sleep tracker in a div, then tasbeeh tracker in another div, these 2 dive will be in another div which will be grid with 2 column, 1 side will be tasbeeh tracker, other side other 2 comp 1 after one. in mobile device portraitmode all will come 1 after another }
 
+// +------------------+
+|    Thumbnail    |
+|    TrackName    |
+|     SeekBar     |
+| PlaybackControls |
+|  SpeedControls  |
++------------------+
+|    Queue List   |
++------------------+
+| Playlist Section |
++------------------+

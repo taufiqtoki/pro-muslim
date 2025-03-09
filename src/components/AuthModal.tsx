@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tabs, Tab, Box } from '@mui/material';
-import { useAuth } from '../../hooks/useAuth.ts';
+import { useAuth } from '../hooks/useAuth.ts';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../../firebase.ts';
+import { auth } from '../firebase.ts';
 
 const AuthModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [email, setEmail] = useState('');

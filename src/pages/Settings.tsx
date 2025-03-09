@@ -7,6 +7,9 @@ import { PrayerSettings } from './settings/PrayerSettings.tsx';
 import { db } from '../firebase.ts';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth.ts';
+import ConfirmationModal from '../components/ConfirmationModal.tsx';
+import { hardReload } from '../utils/reload.ts';
+import { clearAppStorage } from '../utils/storage.ts';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -31,6 +34,7 @@ const Settings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [clearDataModalOpen, setClearDataModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -58,6 +62,26 @@ const Settings: React.FC = () => {
     } catch (error) {
       setError('Failed to save settings');
     }
+  };
+
+  const handleClearSiteData = async () => {
+    try {
+      // Clear app storage but preserve theme
+      clearAppStorage();
+      
+      // Clear caches
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map(key => caches.delete(key)));
+      }
+      setSuccess('Site data cleared successfully');
+      setTimeout(() => {
+        hardReload();
+      }, 1500);
+    } catch (error) {
+      setError('Failed to clear site data');
+    }
+    setClearDataModalOpen(false);
   };
 
   if (loading) {
@@ -160,8 +184,29 @@ const Settings: React.FC = () => {
               <Alert severity="success">{success}</Alert>
             </Box>
           )}
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="h6" color="error" gutterBottom>
+            Danger Zone
+          </Typography>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => setClearDataModalOpen(true)}
+            sx={{ mt: 2 }}
+          >
+            Clear Site Data & Cache
+          </Button>
         </Box>
       </TabPanel>
+
+      <ConfirmationModal
+        open={clearDataModalOpen}
+        onClose={() => setClearDataModalOpen(false)}
+        onConfirm={handleClearSiteData}
+        title="Clear Site Data"
+        message="This will clear all locally stored data and cache. The app will return to its initial state. This action cannot be undone."
+        confirmText="Clear Data"
+      />
     </Container>
   );
 };

@@ -14,6 +14,8 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import YouTubeIcon from '@mui/icons-material/YouTube';
+import DragHandleIcon from '@mui/icons-material/DragHandle';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { usePlaylist } from '../hooks/usePlaylist.ts';
@@ -24,6 +26,8 @@ import { useToast } from '../contexts/ToastContext.tsx';
 import { db } from '../firebase.ts';
 import { getVideoDetails, validateYouTubeUrl, formatDuration, extractYoutubePlaylistId } from '../utils/youtube.ts';
 import { getAudioMetadata } from '../utils/audioMetadata.ts';
+import PlaybackControls from './AudioPlayer/PlaybackControls.tsx';
+import SpeedControls from './AudioPlayer/SpeedControls.tsx';
 
 const AudioPlayer: React.FC = () => {
     const { showToast } = useToast();
@@ -129,7 +133,7 @@ const AudioPlayer: React.FC = () => {
                 setNewPlaylistDialog(false);
                 setNewPlaylistData(prev => ({ ...prev, name: '' }));
                 showToast('Playlist created successfully', 'success');
-                loadPlaylists(); // Reload playlists to update dropdown
+                await loadPlaylists(); // Reload playlists to update dropdown
                 setCurrentPlaylistId(newPlaylistId); // Switch to the new playlist
             } catch (error) {
                 console.error('Error creating playlist:', error);
@@ -853,6 +857,8 @@ const AudioPlayer: React.FC = () => {
                 setYoutubePlaylistDialog(false);
                 setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' }));
                 
+                // Reload playlists to update dropdown
+                await loadPlaylists();
                 // Switch to the newly imported playlist
                 setCurrentPlaylistId(newPlaylistId);
                 refreshPlaylist();
@@ -866,23 +872,180 @@ const AudioPlayer: React.FC = () => {
         }
     };
 
-    return (
-        <Box>
-            {renderPlaylistSelector()}
-            {renderNewPlaylistDialog()}
-            {renderYoutubePlaylistDialog()}
-            {youtubeVideoId ? renderYoutubePlayer() : (
-                <audio
-                    ref={audioRef}
-                    src={getCurrentTrack()?.url || ''}
-                    onTimeUpdate={handleTimeUpdate}
-                    onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-                    onEnded={handleNextTrack}
-                />
-            )}
+    // Remove the trackNameStyles object and replace with simpler styles
+    const cellStyles = {
+        cursor: 'pointer',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        maxWidth: { xs: '150px', sm: '250px' }
+    };
 
-            <Box display="flex" flexDirection="column" alignItems="center" my={2}>
-                {getCurrentTrack()?.thumbnail && (
+    // Add this new helper function
+    const renderEmptyRows = (count: number) => (
+        Array.from({ length: count }).map((_, index) => (
+            <TableRow key={`empty-${index}`}>
+                <TableCell colSpan={isSmallScreen ? 4 : 5} sx={{ 
+                    height: '57px',
+                    borderBottom: index === count - 1 ? 'none' : undefined
+                }} />
+            </TableRow>
+        ))
+    );
+
+    // Update the Queue List section
+    const renderQueueTable = () => {
+        const tracks = getTracks();
+        const emptyRowsCount = Math.max(0, 5 - tracks.length);
+
+        return (
+            <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId="tracks">
+                    {(provided) => (
+                        <TableContainer>
+                            <Table size="small">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell 
+                                            width="10%" 
+                                            sx={{ 
+                                                p: { xs: 0.5, sm: 1 },
+                                                display: { xs: 'none', sm: 'table-cell' }
+                                            }}
+                                        ></TableCell>
+                                        {!isSmallScreen && (
+                                            <TableCell 
+                                                width="10%"
+                                                sx={{ p: { xs: 0.5, sm: 1 } }}
+                                            >#</TableCell>
+                                        )}
+                                        <TableCell 
+                                            width="45%"
+                                            sx={{ p: { xs: 0.5, sm: 1 } }}
+                                        >Name</TableCell>
+                                        <TableCell 
+                                            width="15%"
+                                            sx={{ 
+                                                p: { xs: 0.5, sm: 1 },
+                                                display: { xs: 'none', sm: 'table-cell' }
+                                            }}
+                                        >Length</TableCell>
+                                        <TableCell 
+                                            width="10%" 
+                                            align="center"
+                                            sx={{ p: { xs: 0.5, sm: 1 } }}
+                                        >Actions</TableCell>
+                                        <TableCell 
+                                            width="10%"
+                                            sx={{ p: { xs: 0.5, sm: 1 } }}
+                                        ></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody {...provided.droppableProps} ref={provided.innerRef}>
+                                    {tracks.map((track, index) => (
+                                        <Draggable 
+                                            key={track.id} 
+                                            draggableId={track.id} 
+                                            index={index}
+                                        >
+                                            {(provided) => (
+                                                <TableRow
+                                                    ref={provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    sx={{
+                                                        backgroundColor: index === currentTrackIndex ? 'action.selected' : 'inherit',
+                                                        '&:hover': {
+                                                            backgroundColor: 'action.hover',
+                                                        },
+                                                    }}
+                                                >
+                                                    <TableCell 
+                                                        sx={{ 
+                                                            p: { xs: 0.5, sm: 1 },
+                                                            display: { xs: 'none', sm: 'table-cell' }
+                                                        }}
+                                                    >
+                                                        {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+                                                    </TableCell>
+                                                    {!isSmallScreen && (
+                                                        <TableCell sx={{ p: { xs: 0.5, sm: 1 } }}>
+                                                            {index + 1}
+                                                        </TableCell>
+                                                    )}
+                                                    {renderTrackNameCell(track, index)}
+                                                    <TableCell 
+                                                        sx={{ 
+                                                            p: { xs: 0.5, sm: 1 },
+                                                            display: { xs: 'none', sm: 'table-cell' }
+                                                        }}
+                                                    >
+                                                        {formatDuration(track.duration)}
+                                                    </TableCell>
+                                                    <TableCell sx={{ p: { xs: 0.5, sm: 1 } }}>
+                                                        <Box sx={{ 
+                                                            display: 'flex', 
+                                                            gap: 0.5,
+                                                            justifyContent: 'center'
+                                                        }}>
+                                                            <IconButton 
+                                                                onClick={() => handleTrackSelection(index)}
+                                                                size="small"
+                                                                sx={{ p: { xs: 0.5, sm: 1 } }}
+                                                            >
+                                                                {index === currentTrackIndex && isPlaying ? 
+                                                                    <PauseIcon fontSize="small" /> : 
+                                                                    <PlayArrowIcon fontSize="small" />}
+                                                            </IconButton>
+                                                            <IconButton 
+                                                                onClick={() => handleRemoveTrack(track.id)}
+                                                                size="small"
+                                                                sx={{ p: { xs: 0.5, sm: 1 } }}
+                                                            >
+                                                                <DeleteIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Box>
+                                                    </TableCell>
+                                                    <TableCell 
+                                                        {...provided.dragHandleProps}
+                                                        sx={{ 
+                                                            cursor: 'move',
+                                                            p: { xs: 0.5, sm: 1 }
+                                                        }}
+                                                    >
+                                                        <DragHandleIcon fontSize="small" />
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {renderEmptyRows(emptyRowsCount)}
+                                    {provided.placeholder}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    )}
+                </Droppable>
+            </DragDropContext>
+        );
+    };
+
+    // Update the track name cell rendering in renderQueueTable
+    const renderTrackNameCell = (track: Track, index: number) => (
+        <TableCell 
+            onClick={() => handleTrackSelection(index)}
+            sx={{
+                ...cellStyles,
+                p: { xs: 0.5, sm: 1 }
+            }}
+        >
+            {track.name || ''}
+        </TableCell>
+    );
+
+    const renderMainContent = () => (
+        <Box sx={{ width: '100%', mb: 2 }}>
+            {getCurrentTrack()?.thumbnail && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
                     <img 
                         src={getCurrentTrack().thumbnail} 
                         alt="Track Thumbnail" 
@@ -893,141 +1056,126 @@ const AudioPlayer: React.FC = () => {
                             objectFit: 'cover'
                         }}
                     />
-                )}
-                <Typography variant="h6" align="center" sx={{ mt: 1 }}>
-                    {getCurrentTrack()?.name || 'No Track Selected'}
-                </Typography>
-            </Box>
-
-            <Box display="flex" alignItems="center">
-                <Typography>{formatTime(currentTime)}</Typography>
-                <Slider
-                    value={sliderValue}
-                    max={duration || 100}
-                    onChange={handleSliderChange}
-                    onChangeCommitted={handleSliderChangeCommitted}
-                    style={{ margin: '0 16px', flex: 1, color: 'lightgrey' }}
-                />
-                <Typography>{formatTime(duration)}</Typography>
-            </Box>
-            <Box display="flex" justifyContent="center" mt={2}>
-                <Grid container spacing={1} justifyContent="center">
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={handlePreviousTrack}>
-                            <SkipPreviousIcon />
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(-10)}>
-                            -10s
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(-30)}>
-                            -30s
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(-60)}>
-                            -1m
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(-180)}>
-                            -3m
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={handlePlayPause}>
-                            {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(10)}>
-                            +10s
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(30)}>
-                            +30s
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(60)}>
-                            +1m
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={() => seek(180)}>
-                            +3m
-                        </IconButton>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                        <IconButton onClick={handleNextTrack}>
-                            <SkipNextIcon />
-                        </IconButton>
-                    </Grid>
-                </Grid>
-            </Box>
-
-            <Box display="flex" justifyContent="center" mt={2}>
-                <Grid container spacing={1} justifyContent="center">
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(0.75)}>0.75x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(0.5)}>0.5x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(1)}>1x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(1.25)}>1.25x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(1.5)}>1.5x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(1.75)}>1.75x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(2)}>2x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(3)}>3x</Button>
-                    </Grid>
-                    <Grid item xs={3} sm={1}>
-                        <Button onClick={() => changePlaybackRate(4)}>4x</Button>
-                    </Grid>
-                </Grid>
-            </Box>
-
-            <Paper elevation={3} sx={{ mt: 2 }}>
-                <Box display="flex" alignItems="center" justifyContent="center" p={2}>
-                    <Typography variant="h6">Playlist</Typography>
                 </Box>
-                <Grid container spacing={2} justifyContent="center">
-                    <Grid item xs={12} md={8}>
-                        <Box display="flex" alignItems="center">
-                            <TextField
-                                label="YouTube URL"
-                                value={newTrackUrl}
-                                onChange={(e) => setNewTrackUrl(e.target.value)}
-                                fullWidth
-                            />
-                            <Button onClick={handleAddTrack} variant="contained" color="primary" sx={{ height: '56px' }}>
-                                Add
-                            </Button>
-                        </Box>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
+            )}
+            {renderMainTitle()}
+            
+            <Box sx={{ px: 2 }}>
+                <Box display="flex" alignItems="center">
+                    <Typography>{formatTime(currentTime)}</Typography>
+                    <Slider
+                        value={sliderValue}
+                        max={duration || 100}
+                        onChange={handleSliderChange}
+                        onChangeCommitted={handleSliderChangeCommitted}
+                        sx={{ mx: 2, flex: 1 }}
+                    />
+                    <Typography>{formatTime(duration)}</Typography>
+                </Box>
+            </Box>
+
+            <PlaybackControls
+                isPlaying={isPlaying}
+                onPlayPause={handlePlayPause}
+                onNext={handleNextTrack}
+                onPrevious={handlePreviousTrack}
+                onSeek={seek}
+            />
+            
+            <SpeedControls onSpeedChange={changePlaybackRate} />
+        </Box>
+    );
+
+    // For main content title, update the Box style:
+    const renderMainTitle = () => (
+        <Box sx={{
+            width: '100%',
+            height: '2em',
+            mb: 2
+        }}>
+            <Typography 
+                variant="h6" 
+                component="div"
+                align="center"
+                sx={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                }}
+            >
+                {getCurrentTrack()?.name || 'No Track Selected'}
+            </Typography>
+        </Box>
+    );
+
+    const onDragEnd = async (result: any) => {
+        if (!result.destination) return;
+
+        const tracks = getTracks();
+        const newTracks = Array.from(tracks);
+        const [reorderedTrack] = newTracks.splice(result.source.index, 1);
+        newTracks.splice(result.destination.index, 0, reorderedTrack);
+
+        // Update tracks order
+        const updatedPlaylist = {
+            ...playlist!,
+            tracks: newTracks,
+            updatedAt: Date.now()
+        };
+
+        // Save to localStorage directly since we're using it as primary storage
+        localStorage.setItem(`playlist_${currentPlaylistId}`, JSON.stringify(updatedPlaylist));
+        
+        // Force refresh the playlist to update the UI
+        refreshPlaylist();
+    };
+
+    return (
+        <Box sx={{ p: 2 }}>
+            {/* Audio/YouTube Players */}
+            {youtubeVideoId ? renderYoutubePlayer() : (
+                <audio
+                    ref={audioRef}
+                    src={getCurrentTrack()?.url || ''}
+                    onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+                    onEnded={handleNextTrack}
+                />
+            )}
+
+            {/* Main content - Player controls */}
+            {renderMainContent()}
+
+            {/* Lists Container */}
+            <Box sx={{ 
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                gap: 2
+            }}>
+                {/* Queue List */}
+                <Paper elevation={3} sx={{ p: 2 }}>
+                    <Typography variant="h6" align="center" gutterBottom>
+                        Queue
+                    </Typography>
+                    <TableContainer>
+                        {renderQueueTable()}
+                    </TableContainer>
+                    <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+                        <TextField
+                            label="YouTube URL"
+                            value={newTrackUrl}
+                            onChange={(e) => setNewTrackUrl(e.target.value)}
+                            size="small"
+                            fullWidth
+                        />
+                        <Button onClick={handleAddTrack} variant="contained">
+                            Add
+                        </Button>
                         <Button
                             variant="contained"
                             component="label"
-                            fullWidth
-                            sx={{ height: '56px' }}
                         >
-                            Add Local File
+                            Add File
                             <input
                                 type="file"
                                 accept="audio/*"
@@ -1035,39 +1183,48 @@ const AudioPlayer: React.FC = () => {
                                 hidden
                             />
                         </Button>
-                    </Grid>
-                </Grid>
-                <TableContainer>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Type</TableCell>
-                                {!isSmallScreen && <TableCell>Serial</TableCell>}
-                                <TableCell sx={{ width: '50%' }}>Name</TableCell>
-                                <TableCell>Duration</TableCell>
-                                <TableCell>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={isSmallScreen ? 4 : 5} align="center">Loading...</TableCell>
-                                </TableRow>
-                            ) : error ? (
-                                <TableRow>
-                                    <TableCell colSpan={isSmallScreen ? 4 : 5} align="center">Error: {error}</TableCell>
-                                </TableRow>
-                            ) : getTracks().length > 0 ? (
-                                getTracks().map((track, index) => renderTrackRow(track, index))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={isSmallScreen ? 4 : 5} align="center">No tracks in playlist</TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Paper>
+                    </Box>
+                </Paper>
+
+                {/* Playlists */}
+                <Paper elevation={3} sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                        <Select
+                            value={currentPlaylistId}
+                            onChange={(e) => setCurrentPlaylistId(e.target.value)}
+                            size="small"
+                            fullWidth
+                        >
+                            {playlists.map((playlist) => (
+                                <MenuItem key={playlist.id} value={playlist.id}>
+                                    {playlist.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                        <Button
+                            startIcon={<PlaylistAddIcon />}
+                            onClick={() => setNewPlaylistDialog(true)}
+                            variant="contained"
+                        >
+                            New
+                        </Button>
+                        <Button
+                            startIcon={<YouTubeIcon />}
+                            onClick={() => setYoutubePlaylistDialog(true)}
+                            variant="contained"
+                        >
+                            Import
+                        </Button>
+                    </Box>
+                    <TableContainer>
+                        {renderQueueTable()} {/* Use the same table renderer for consistency */}
+                    </TableContainer>
+                </Paper>
+            </Box>
+
+            {/* Dialogs */}
+            {renderNewPlaylistDialog()}
+            {renderYoutubePlaylistDialog()}
         </Box>
     );
 };

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, CircularProgress, Alert, Button } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Button, Divider } from '@mui/material';
 import { useAuth } from '../hooks/useAuth.ts';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase.ts';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import ConfirmationModal from '../components/ConfirmationModal.tsx';
+import { hardReload } from '../utils/reload.ts';
 
 const Profile: React.FC = () => {
   const { user } = useAuth();
   const [totalMinutes, setTotalMinutes] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [clearDataModalOpen, setClearDataModalOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,6 +40,82 @@ const Profile: React.FC = () => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
+  };
+
+  const deleteUserData = async (userId: string) => {
+    // Define collections to delete and any subcollections if applicable.
+    const collectionsToDelete: { name: string; subcollections?: string[] }[] = [
+      { name: 'sleep' },
+      { name: 'settings' },
+      { name: 'tasbeehs' },
+      { name: 'prayers' },
+      { name: 'bucketLists', subcollections: ['items'] }
+    ];
+
+    // Helper function to commit batch deletes if pending count exists.
+    const commitBatch = async (batch: ReturnType<typeof writeBatch>, count: number) => {
+      if (count > 0) {
+        await batch.commit();
+      }
+    };
+
+    for (const { name, subcollections } of collectionsToDelete) {
+      const colRef = collection(db, `users/${userId}/${name}`);
+      const qSnap = await getDocs(query(colRef));
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const docSnap of qSnap.docs) {
+        // If there are subcollections to delete, process them first.
+        if (subcollections && subcollections.length) {
+          for (const subName of subcollections) {
+            const subColRef = collection(docSnap.ref, subName);
+            const subSnap = await getDocs(query(subColRef));
+            for (const subDoc of subSnap.docs) {
+              batch.delete(subDoc.ref);
+              count++;
+              if (count >= 400) {
+                await batch.commit();
+                batch = writeBatch(db);
+                count = 0;
+              }
+            }
+          }
+        }
+        batch.delete(docSnap.ref);
+        count++;
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      await commitBatch(batch, count);
+    }
+
+    // Optionally delete the top-level user document if it's not needed.
+    await deleteDoc(doc(db, `users/${userId}`));
+    
+    return true;
+  };
+
+  const handleClearUserData = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      await deleteUserData(user.uid);
+      setTotalMinutes(0);
+      setTimeout(() => {
+        hardReload();
+      }, 1500);
+    } catch (err) {
+      console.error('Clear data error:', err);
+      setError('Failed to clear user data. Please try again.');
+    } finally {
+      setLoading(false);
+      setClearDataModalOpen(false);
+    }
   };
 
   if (loading) {
@@ -66,6 +145,26 @@ const Profile: React.FC = () => {
       <Button variant="contained" color="primary" onClick={() => navigate('/report')}>
         View Report
       </Button>
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="h6" color="error" gutterBottom>
+        Danger Zone
+      </Typography>
+      <Button
+        variant="outlined"
+        color="error"
+        onClick={() => setClearDataModalOpen(true)}
+      >
+        Clear All My Data
+      </Button>
+
+      <ConfirmationModal
+        open={clearDataModalOpen}
+        onClose={() => setClearDataModalOpen(false)}
+        onConfirm={handleClearUserData}
+        title="Clear User Data"
+        message="This will permanently delete all your data including sleep records, settings, and other personal information. This action cannot be undone."
+        confirmText="Delete All My Data"
+      />
     </Box>
   );
 };
