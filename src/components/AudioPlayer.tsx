@@ -18,7 +18,7 @@ import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { usePlaylist } from '../hooks/usePlaylist.ts';
 import { playlistService } from '../services/playlistService.ts';
-import { Track } from '../types/playlist.ts';
+import { Track, Playlist } from '../types/playlist.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 import { useToast } from '../contexts/ToastContext.tsx';
 import { db } from '../firebase.ts';
@@ -92,19 +92,49 @@ const AudioPlayer: React.FC = () => {
     const [importLoading, setImportLoading] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
+    const [playlists, setPlaylists] = useState<Playlist[]>([]); // Add state for playlists
+
+    const loadPlaylists = async () => {
+        if (user) {
+            try {
+                const userPlaylists = await playlistService.getUserPlaylists(user.uid);
+                setPlaylists(userPlaylists);
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+                showToast('Error loading playlists', 'error');
+            }
+        } else {
+            // Load from localStorage if no user
+            const localPlaylists = JSON.parse(localStorage.getItem('playlists') || '[]');
+            setPlaylists(localPlaylists);
+        }
+    };
+
+    useEffect(() => {
+        loadPlaylists();
+    }, [user]);
+
     const handleCreatePlaylist = async () => {
         if (user && newPlaylistData.name) {
-            await playlistService.createPlaylist(user.uid, {
-                name: newPlaylistData.name,
-                description: '',
-                tracks: [],
-                isPublic: false,
-                type: 'queue',
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            });
-            setNewPlaylistDialog(false);
-            setNewPlaylistData(prev => ({ ...prev, name: '' }));
+            try {
+                const newPlaylistId = await playlistService.createPlaylist(user.uid, {
+                    name: newPlaylistData.name,
+                    description: '',
+                    tracks: [],
+                    isPublic: false,
+                    type: 'custom',
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                });
+                setNewPlaylistDialog(false);
+                setNewPlaylistData(prev => ({ ...prev, name: '' }));
+                showToast('Playlist created successfully', 'success');
+                loadPlaylists(); // Reload playlists to update dropdown
+                setCurrentPlaylistId(newPlaylistId); // Switch to the new playlist
+            } catch (error) {
+                console.error('Error creating playlist:', error);
+                showToast('Error creating playlist', 'error');
+            }
         }
     };
 
@@ -222,11 +252,11 @@ const AudioPlayer: React.FC = () => {
                 onChange={(e) => setCurrentPlaylistId(e.target.value)}
                 sx={{ minWidth: 200 }}
             >
-                <MenuItem value="queue">Queue</MenuItem>
-                <MenuItem value="online">Online</MenuItem>
-                <MenuItem value="offline">Offline</MenuItem>
-                <MenuItem value="favorites">Favorites</MenuItem>
-                {/* Remove custom playlists for now since we're not using them */}
+                {playlists.map((playlist) => (
+                    <MenuItem key={playlist.id} value={playlist.id}>
+                        {playlist.name}
+                    </MenuItem>
+                ))}
             </Select>
             <Button
                 startIcon={<PlaylistAddIcon />}
@@ -807,7 +837,7 @@ const AudioPlayer: React.FC = () => {
             }
 
             if (user) {
-                // First get playlist details to show total count
+                // First get playlist details to show total count and get the name
                 const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
                 setImportProgress({ current: 0, total: details.itemCount });
 
@@ -819,7 +849,7 @@ const AudioPlayer: React.FC = () => {
                     (current) => setImportProgress(prev => ({ ...prev, current }))
                 );
 
-                showToast('YouTube playlist imported successfully', 'success');
+                showToast(`YouTube playlist "${details.title}" imported successfully`, 'success');
                 setYoutubePlaylistDialog(false);
                 setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' }));
                 

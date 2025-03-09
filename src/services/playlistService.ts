@@ -1,5 +1,5 @@
 import { db } from '../firebase.ts';
-import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, getDocs } from 'firebase/firestore';
 import { Track, Playlist, UserPlaylists, YouTubePlaylist } from '../types/playlist.ts';
 import { parseDuration } from '../utils/youtube.ts';
 
@@ -400,5 +400,15 @@ export const playlistService = {
             });
         }
     }
+  },
+
+  async getUserPlaylists(userId: string): Promise<Playlist[]> {
+    const playlists: Playlist[] = [];
+    const playlistsRef = collection(db, `users/${userId}/playlists`);
+    const snapshot = await getDocs(playlistsRef);
+    snapshot.forEach(doc => {
+        playlists.push(doc.data() as Playlist);
+    });
+    return playlists;
   }
 };

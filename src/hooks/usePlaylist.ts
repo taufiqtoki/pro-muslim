@@ -134,49 +134,75 @@ export const usePlaylist = (playlistId?: string) => {
     }
   };
 
+  const addTrack = async (track: Track) => {
+    if (!user) {
+      setPlaylist(prev => {
+        if (!prev) {
+          const newPlaylist: Playlist = {
+            id: playlistId || 'default',
+            name: 'Default Playlist',
+            tracks: [track],
+            isPublic: false,
+            type: 'custom',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+          localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
+          return newPlaylist;
+        }
+        
+        const updatedPlaylist: Playlist = {
+          ...prev,
+          tracks: [...prev.tracks, track],
+          updatedAt: Date.now()
+        };
+        localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
+        return updatedPlaylist;
+      });
+      return;
+    }
+
+    try {
+      await playlistService.addTrackToPlaylist(user.uid, playlistId || 'default', track);
+      setPlaylist(prev => prev ? {
+        ...prev,
+        tracks: [...prev.tracks, track],
+        updatedAt: Date.now()
+      } : null);
+    } catch (error) {
+      console.error('Error adding track:', error);
+    }
+  };
+
+  const createPlaylist = async (playlist: Omit<Playlist, 'id'>) => {
+    if (!user) {
+      const newPlaylist: Playlist = {
+        ...playlist,
+        id: `local_${Date.now()}`,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      const localPlaylists = JSON.parse(localStorage.getItem('playlists') || '[]');
+      localPlaylists.push(newPlaylist);
+      localStorage.setItem('playlists', JSON.stringify(localPlaylists));
+      return newPlaylist.id;
+    }
+
+    try {
+      const newPlaylistId = await playlistService.createPlaylist(user.uid, playlist);
+      return newPlaylistId;
+    } catch (error) {
+      console.error('Error creating playlist:', error);
+      throw error;
+    }
+  };
+
   return {
     playlist,
     loading,
     error,
-    addTrack: async (track: Track) => {
-      if (!user) {
-        setPlaylist(prev => {
-          if (!prev) {
-            const newPlaylist: Playlist = {
-              id: playlistId || 'default',
-              name: 'Default Playlist',
-              tracks: [track],
-              isPublic: false,
-              type: 'custom',
-              createdAt: Date.now(),
-              updatedAt: Date.now()
-            };
-            localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
-            return newPlaylist;
-          }
-          
-          const updatedPlaylist: Playlist = {
-            ...prev,
-            tracks: [...prev.tracks, track],
-            updatedAt: Date.now()
-          };
-          localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
-          return updatedPlaylist;
-        });
-        return;
-      }
-
-      try {
-        await playlistService.addTrackToPlaylist(user.uid, playlistId || 'default', track);
-        setPlaylist(prev => prev ? {
-          ...prev,
-          tracks: [...prev.tracks, track],
-          updatedAt: Date.now()
-        } : null);
-      } catch (error) {
-        console.error('Error adding track:', error);
-      }
-    },
+    addTrack,
+    createPlaylist,
     addYouTubePlaylist: async (youtubePlaylistId: string) => {
       if (!user) {
         throw new Error('User must be logged in to import YouTube playlists');
