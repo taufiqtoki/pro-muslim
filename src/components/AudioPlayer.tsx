@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, IconButton, Slider, Typography, TextField, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Grid, useMediaQuery, useTheme, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, IconButton, Slider, Typography, TextField, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Grid, useMediaQuery, useTheme, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
@@ -13,6 +13,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import YouTubeIcon from '@mui/icons-material/YouTube';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { usePlaylist } from '../hooks/usePlaylist.ts';
@@ -21,7 +22,7 @@ import { Track } from '../types/playlist.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 import { useToast } from '../contexts/ToastContext.tsx';
 import { db } from '../firebase.ts';
-import { getVideoDetails, validateYouTubeUrl, formatDuration } from '../utils/youtube.ts';
+import { getVideoDetails, validateYouTubeUrl, formatDuration, extractYoutubePlaylistId } from '../utils/youtube.ts';
 import { getAudioMetadata } from '../utils/audioMetadata.ts';
 
 const AudioPlayer: React.FC = () => {
@@ -36,12 +37,13 @@ const AudioPlayer: React.FC = () => {
     const [newPlaylistDialog, setNewPlaylistDialog] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [favorites, setFavorites] = useState<string[]>([]);
+    const [youtubePlaylistDialog, setYoutubePlaylistDialog] = useState(false);
     const audioRef = useRef<HTMLAudioElement>(null);
     const youtubeRef = useRef<any>(null);
     const { user } = useAuth();
     const theme = useTheme();
     const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-    const [currentPlaylistId, setCurrentPlaylistId] = useState<string>('default');
+    const [currentPlaylistId, setCurrentPlaylistId] = useState<string>('queue');
     const { playlist, loading, error, addTrack, removeTrack, updateTrack, refreshPlaylist } = usePlaylist(currentPlaylistId);
 
     // Add state for YouTube duration
@@ -76,21 +78,33 @@ const AudioPlayer: React.FC = () => {
             cc_load_policy: 0, // Disable closed captions
             color: 'white', // Simpler color scheme
             hl: 'en', // Force English UI for smaller size
+            host: window.location.protocol + '//' + window.location.hostname,
+            widget_referrer: window.location.origin,
         },
     };
 
+    const [newPlaylistData, setNewPlaylistData] = useState({
+        name: '',
+        type: 'custom' as const,
+        youtubeUrl: ''
+    });
+
+    const [importLoading, setImportLoading] = useState(false);
+    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+
     const handleCreatePlaylist = async () => {
-        if (user && newPlaylistName) {
+        if (user && newPlaylistData.name) {
             await playlistService.createPlaylist(user.uid, {
-                name: newPlaylistName,
+                name: newPlaylistData.name,
                 description: '',
                 tracks: [],
                 isPublic: false,
+                type: 'queue',
                 createdAt: Date.now(),
                 updatedAt: Date.now()
             });
             setNewPlaylistDialog(false);
-            setNewPlaylistName('');
+            setNewPlaylistData(prev => ({ ...prev, name: '' }));
         }
     };
 
@@ -208,14 +222,23 @@ const AudioPlayer: React.FC = () => {
                 onChange={(e) => setCurrentPlaylistId(e.target.value)}
                 sx={{ minWidth: 200 }}
             >
-                <MenuItem value="default">Default Playlist</MenuItem>
+                <MenuItem value="queue">Queue</MenuItem>
+                <MenuItem value="online">Online</MenuItem>
+                <MenuItem value="offline">Offline</MenuItem>
                 <MenuItem value="favorites">Favorites</MenuItem>
+                {/* Remove custom playlists for now since we're not using them */}
             </Select>
             <Button
                 startIcon={<PlaylistAddIcon />}
                 onClick={() => setNewPlaylistDialog(true)}
             >
                 New Playlist
+            </Button>
+            <Button
+                startIcon={<YouTubeIcon />}
+                onClick={() => setYoutubePlaylistDialog(true)}
+            >
+                Import YouTube Playlist
             </Button>
         </Box>
     );
@@ -229,13 +252,57 @@ const AudioPlayer: React.FC = () => {
                     margin="dense"
                     label="Playlist Name"
                     fullWidth
-                    value={newPlaylistName}
-                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                    value={newPlaylistData.name}
+                    onChange={(e) => setNewPlaylistData(prev => ({...prev, name: e.target.value}))}
                 />
             </DialogContent>
             <DialogActions>
                 <Button onClick={() => setNewPlaylistDialog(false)}>Cancel</Button>
                 <Button onClick={handleCreatePlaylist}>Create</Button>
+            </DialogActions>
+        </Dialog>
+    );
+
+    const renderYoutubePlaylistDialog = () => (
+        <Dialog 
+            open={youtubePlaylistDialog} 
+            onClose={() => !importLoading && setYoutubePlaylistDialog(false)}
+        >
+            <DialogTitle>Import YouTube Playlist</DialogTitle>
+            <DialogContent>
+                <TextField
+                    autoFocus
+                    margin="dense"
+                    label="YouTube Playlist URL"
+                    fullWidth
+                    disabled={importLoading}
+                    value={newPlaylistData.youtubeUrl}
+                    onChange={(e) => setNewPlaylistData(prev => ({...prev, youtubeUrl: e.target.value}))}
+                    helperText="Enter the full YouTube playlist URL"
+                />
+                {importLoading && (
+                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                        <CircularProgress size={24} sx={{ mr: 1 }} />
+                        <Typography variant="body2" color="textSecondary">
+                            Importing {importProgress.current} of {importProgress.total} tracks...
+                        </Typography>
+                    </Box>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button 
+                    onClick={() => setYoutubePlaylistDialog(false)}
+                    disabled={importLoading}
+                >
+                    Cancel
+                </Button>
+                <Button 
+                    onClick={handleImportYoutubePlaylist}
+                    disabled={importLoading || !newPlaylistData.youtubeUrl}
+                    startIcon={importLoading ? <CircularProgress size={16} /> : null}
+                >
+                    {importLoading ? 'Importing...' : 'Import'}
+                </Button>
             </DialogActions>
         </Dialog>
     );
@@ -270,7 +337,11 @@ const AudioPlayer: React.FC = () => {
                     <IconButton 
                         onClick={(e) => {
                             e.stopPropagation();
-                            handleTrackSelection(index);
+                            if (index === currentTrackIndex) {
+                                handlePlayPause();
+                            } else {
+                                handleTrackSelection(index);
+                            }
                         }}
                         sx={{ 
                             padding: '12px',
@@ -279,7 +350,7 @@ const AudioPlayer: React.FC = () => {
                             }
                         }}
                     >
-                        <PlayArrowIcon />
+                        {index === currentTrackIndex && isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
                     </IconButton>
                     <IconButton 
                         onClick={(e) => {
@@ -355,29 +426,37 @@ const AudioPlayer: React.FC = () => {
         }
     };
 
-    const handlePlayPause = () => {
+    const handlePlayPause = async () => {
         const currentTrack = getCurrentTrack();
         if (!currentTrack) return;
         
-        const youtubeRegex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)/;
-        if (youtubeRegex.test(currentTrack.url)) {
-            if (youtubeRef.current && youtubeRef.current.internalPlayer) {
-                if (isPlaying) {
-                    youtubeRef.current.internalPlayer.pauseVideo();
+        try {
+            if (currentTrack.type === 'youtube') {
+                if (youtubeRef.current?.internalPlayer) {
+                    if (isPlaying) {
+                        await youtubeRef.current.internalPlayer.pauseVideo();
+                    } else {
+                        await youtubeRef.current.internalPlayer.playVideo();
+                    }
+                    setIsPlaying(!isPlaying);
                 } else {
-                    youtubeRef.current.internalPlayer.playVideo();
+                    // If player not ready, reload the track
+                    await handlePlayTrack(currentTrack);
+                }
+            } else {
+                if (audioRef.current) {
+                    if (isPlaying) {
+                        audioRef.current.pause();
+                    } else {
+                        await audioRef.current.play();
+                    }
+                    setIsPlaying(!isPlaying);
                 }
             }
-        } else {
-            if (audioRef.current) {
-                if (isPlaying) {
-                    audioRef.current.pause();
-                } else {
-                    audioRef.current.play();
-                }
-            }
+        } catch (error) {
+            console.error('Error in handlePlayPause:', error);
+            showToast('Error playing track', 'error');
         }
-        setIsPlaying(!isPlaying);
     };
 
     const handleTimeUpdate = () => {
@@ -487,18 +566,25 @@ const AudioPlayer: React.FC = () => {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
-    const seek = (seconds: number) => {
+    const seek = async (seconds: number) => {
         const currentTrack = getCurrentTrack();
         if (!currentTrack) return;
         
-        const youtubeRegex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)/;
-        if (youtubeRegex.test(currentTrack.url)) {
-            youtubeRef.current.internalPlayer.seekTo(Math.min(Math.max(0, youtubeRef.current.internalPlayer.getCurrentTime() + seconds), duration), true);
-        } else {
-            if (audioRef.current) {
-                audioRef.current.currentTime = Math.min(Math.max(0, audioRef.current.currentTime + seconds), duration);
-                setCurrentTime(audioRef.current.currentTime);
+        try {
+            if (currentTrack.type === 'youtube' && youtubeRef.current?.internalPlayer) {
+                const currentTime = await youtubeRef.current.internalPlayer.getCurrentTime();
+                const newTime = Math.min(Math.max(0, currentTime + seconds), duration);
+                await youtubeRef.current.internalPlayer.seekTo(newTime, true);
+                setCurrentTime(newTime);
+                setSliderValue(newTime);
+            } else if (audioRef.current) {
+                const newTime = Math.min(Math.max(0, audioRef.current.currentTime + seconds), duration);
+                audioRef.current.currentTime = newTime;
+                setCurrentTime(newTime);
+                setSliderValue(newTime);
             }
+        } catch (error) {
+            console.error('Error seeking:', error);
         }
     };
 
@@ -613,14 +699,19 @@ const AudioPlayer: React.FC = () => {
     };
 
     const handleTrackSelection = async (index: number) => {
-        setCurrentTrackIndex(index);
-        setCurrentTime(0);
-        setIsPlaying(false);
-        
         const track = getTracks()[index];
-        if (track) {
+        if (!track) return;
+
+        try {
+            setCurrentTrackIndex(index);
+            setCurrentTime(0);
+            setSliderValue(0);
+            setIsPlaying(false);
+            
             await handlePlayTrack(track);
-            setIsPlaying(true);
+        } catch (error) {
+            console.error('Error selecting track:', error);
+            showToast('Error playing track', 'error');
         }
     };
 
@@ -676,39 +767,80 @@ const AudioPlayer: React.FC = () => {
 
     // Update YouTube player component
     const renderYoutubePlayer = () => (
-        <Box sx={{ 
-            display: 'none',
-            position: 'absolute',
-            top: '-9999px',
-            left: '-9999px'
-        }}>
+        <Box sx={{ display: 'none' }}>
             <YouTube
-                videoId={youtubeVideoId || ''} // Provide empty string as fallback
+                videoId={youtubeVideoId || ''}
                 ref={youtubeRef}
                 onStateChange={handleYoutubeStateChange}
-                onReady={(event) => {
+                onReady={async (event) => {
                     const player = event.target;
-                    // Set lowest video quality
                     player.setPlaybackQuality('tiny');
-                    // Optimize for audio
                     player.setVolume(100);
-                    // Get duration
                     const duration = player.getDuration();
                     setDuration(duration);
-                    // Play if needed
+                    
+                    // Only play if we're supposed to be playing
                     if (isPlaying) {
-                        player.playVideo();
+                        try {
+                            await player.playVideo();
+                        } catch (error) {
+                            console.error('Error auto-playing:', error);
+                        }
                     }
+                }}
+                onError={(error) => {
+                    console.error('YouTube player error:', error);
+                    showToast('Error playing YouTube track', 'error');
                 }}
                 opts={youtubeOpts}
             />
         </Box>
     );
 
+    const handleImportYoutubePlaylist = async () => {
+        try {
+            setImportLoading(true);
+            const playlistId = extractYoutubePlaylistId(newPlaylistData.youtubeUrl);
+            if (!playlistId) {
+                showToast('Invalid YouTube playlist URL', 'error');
+                return;
+            }
+
+            if (user) {
+                // First get playlist details to show total count
+                const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
+                setImportProgress({ current: 0, total: details.itemCount });
+
+                // Import the playlist with progress tracking
+                const newPlaylistId = await playlistService.importYouTubePlaylist(
+                    user.uid, 
+                    playlistId, 
+                    undefined, 
+                    (current) => setImportProgress(prev => ({ ...prev, current }))
+                );
+
+                showToast('YouTube playlist imported successfully', 'success');
+                setYoutubePlaylistDialog(false);
+                setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' }));
+                
+                // Switch to the newly imported playlist
+                setCurrentPlaylistId(newPlaylistId);
+                refreshPlaylist();
+            }
+        } catch (error: any) {
+            showToast(error.message || 'Error importing playlist', 'error');
+            console.error('Error importing playlist:', error);
+        } finally {
+            setImportLoading(false);
+            setImportProgress({ current: 0, total: 0 });
+        }
+    };
+
     return (
         <Box>
             {renderPlaylistSelector()}
             {renderNewPlaylistDialog()}
+            {renderYoutubePlaylistDialog()}
             {youtubeVideoId ? renderYoutubePlayer() : (
                 <audio
                     ref={audioRef}

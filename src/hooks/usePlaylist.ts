@@ -27,6 +27,7 @@ export const usePlaylist = (playlistId?: string) => {
           name: 'Favorites',
           tracks: favoriteTracks,
           isPublic: false,
+          type: 'favorites', // Add this line
           createdAt: Date.now(),
           updatedAt: Date.now()
         });
@@ -44,6 +45,19 @@ export const usePlaylist = (playlistId?: string) => {
       const localData = localStorage.getItem(`playlist_${playlistId}`);
       if (localData) {
         setPlaylist(JSON.parse(localData));
+      } else {
+        // Create default playlist structure
+        const defaultPlaylist: Playlist = {
+          id: playlistId || 'queue',
+          name: 'Queue',
+          tracks: [],
+          isPublic: false,
+          type: 'queue',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        setPlaylist(defaultPlaylist);
+        localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(defaultPlaylist));
       }
       setLoading(false);
       return;
@@ -126,22 +140,28 @@ export const usePlaylist = (playlistId?: string) => {
     error,
     addTrack: async (track: Track) => {
       if (!user) {
-        // Handle local storage for non-logged in users
         setPlaylist(prev => {
-          const newPlaylist = prev ? {
+          if (!prev) {
+            const newPlaylist: Playlist = {
+              id: playlistId || 'default',
+              name: 'Default Playlist',
+              tracks: [track],
+              isPublic: false,
+              type: 'custom',
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+            localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
+            return newPlaylist;
+          }
+          
+          const updatedPlaylist: Playlist = {
             ...prev,
             tracks: [...prev.tracks, track],
             updatedAt: Date.now()
-          } : {
-            id: playlistId || 'default',
-            name: 'Default Playlist',
-            tracks: [track],
-            isPublic: false,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
           };
-          localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
-          return newPlaylist;
+          localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
+          return updatedPlaylist;
         });
         return;
       }
@@ -155,6 +175,38 @@ export const usePlaylist = (playlistId?: string) => {
         } : null);
       } catch (error) {
         console.error('Error adding track:', error);
+      }
+    },
+    addYouTubePlaylist: async (youtubePlaylistId: string) => {
+      if (!user) {
+        throw new Error('User must be logged in to import YouTube playlists');
+      }
+
+      try {
+        const playlistDetails = await playlistService.fetchYouTubePlaylistDetails(youtubePlaylistId);
+        const tracks = await playlistService.fetchYouTubePlaylistTracks(youtubePlaylistId);
+        
+        const newPlaylist: Playlist = {
+          id: `youtube_${youtubePlaylistId}`,
+          name: playlistDetails.title,
+          description: playlistDetails.description,
+          tracks,
+          isPublic: false,
+          type: 'youtube',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          source: {
+            youtubePlaylistId,
+            url: `https://www.youtube.com/playlist?list=${youtubePlaylistId}`
+          }
+        };
+
+        await playlistService.createPlaylist(user.uid, newPlaylist);
+        setPlaylist(newPlaylist);
+        return newPlaylist.id;
+      } catch (error) {
+        console.error('Error importing YouTube playlist:', error);
+        throw error;
       }
     },
     removeTrack,

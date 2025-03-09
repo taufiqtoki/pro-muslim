@@ -20,11 +20,31 @@ export interface Playlist {
   updatedAt: number;
   tracks: Track[];
   isPublic: boolean;
+  type: 'queue' | 'online' | 'offline' | 'favorites' | 'youtube' | 'custom';
+  source?: {
+    youtubePlaylistId?: string;
+    url?: string;
+  };
 }
 
 export interface UserPlaylists {
-  default: Playlist;
+  queue: Playlist;
+  online: Playlist;
+  offline: Playlist;
+  favorites: Playlist;
   custom: Playlist[];
-  favorites: string[];  // Track IDs
   recentlyPlayed: string[];  // Track IDs
+}
+
+export interface YouTubePlaylist {
+  id: string;
+  title: string;
+  description: string;
+  thumbnails: {
+    default: string;
+    medium?: string;
+    high?: string;
+  };
+  itemCount: number;
+  isPrivate?: boolean;
 }

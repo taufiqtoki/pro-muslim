@@ -70,7 +70,33 @@ export const formatDuration = (seconds: number): string => {
 };
 
 export const validateYouTubeUrl = (url: string): string | null => {
-  const pattern = /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([^"&?\s]{11})/;
-  const matches = url.match(pattern);
-  return matches ? matches[1] : null;
+  const patterns = [
+    /(?:v=|\/)([\w-]{11})(?:\?|&|\/|$)/,  // Regular video URL
+    /^([\w-]{11})$/,  // Just the video ID
+    /youtu.be\/([\w-]{11})(?:\?|&|$)/,  // Shortened URL
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
+};
+
+// Extract playlist ID from YouTube playlist URL
+export const extractYoutubePlaylistId = (url: string): string | null => {
+  const patterns = [
+    /[?&]list=([\w-]+)/, // Regular playlist URL
+    /youtube\.com\/playlist\/?[?&]list=([\w-]+)/, // Playlist page URL (removed unnecessary escape)
+    /^(PL[\w-]+)$/, // Just the playlist ID
+    /youtu\.be\/.*[?&]list=([\w-]+)/, // Shortened URL with playlist
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
 };
