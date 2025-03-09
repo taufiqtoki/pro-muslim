@@ -1,0 +1,11 @@
+"in this note all feature mentioned - cpmponent and files are there , dont make new file search and read files before then tale action"
+
+{ prayertimes widget will show a timer for next prayer remaining time as:
+ "Be ready for next salah in '..:..'"
+
+ it will show as heading of prayertims widget, as (h3) :jamaat times, "Be ready for next salah in '..:..'"
+ for pc and tab  linem mobile portrait 2 line.}
+
+{for responsiveness:divide stopwatch by 4 parts in 3 will be stop watch, then there will be a horizontal line after that line there will a top heading"extra", then below will be the icoons of calculator , timer and AudioPlayer.
+put complete stopwatchcomponet and sleep tracker in a div, then tasbeeh tracker in another div, these 2 dive will be in another div which will be grid with 2 column, 1 side will be tasbeeh tracker, other side other 2 comp 1 after one. in mobile device portraitmode all will come 1 after another }
+

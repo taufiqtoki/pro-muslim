@@ -21,7 +21,7 @@ import { Track } from '../types/playlist.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 import { useToast } from '../contexts/ToastContext.tsx';
 import { db } from '../firebase.ts';
-import { getVideoDetails, validateYouTubeUrl } from '../utils/youtube.ts';
+import { getVideoDetails, validateYouTubeUrl, formatDuration } from '../utils/youtube.ts';
 import { getAudioMetadata } from '../utils/audioMetadata.ts';
 
 const AudioPlayer: React.FC = () => {
@@ -30,7 +30,7 @@ const AudioPlayer: React.FC = () => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-    const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+    const [youtubeVideoId, setYoutubeVideoId] = useState<string | undefined>(undefined);
     const [newTrackUrl, setNewTrackUrl] = useState('');
     const [playbackRate, setPlaybackRate] = useState(1);
     const [newPlaylistDialog, setNewPlaylistDialog] = useState(false);
@@ -43,6 +43,41 @@ const AudioPlayer: React.FC = () => {
     const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
     const [currentPlaylistId, setCurrentPlaylistId] = useState<string>('default');
     const { playlist, loading, error, addTrack, removeTrack, updateTrack, refreshPlaylist } = usePlaylist(currentPlaylistId);
+
+    // Add state for YouTube duration
+    const [youtubeDuration, setYoutubeDuration] = useState(0);
+
+    // Fix for Slider state management
+    const [sliderValue, setSliderValue] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // Add new ref for interval cleanup
+    const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Add new YouTube optimization options
+    const youtubeOpts = {
+        height: '1',
+        width: '1',
+        playerVars: {
+            autoplay: 0,
+            controls: 0,
+            origin: window.location.origin,
+            enablejsapi: 1,
+            modestbranding: 1,
+            rel: 0,
+            showinfo: 0,
+            fs: 0,
+            playsinline: 1,
+            disablekb: 1,
+            iv_load_policy: 3,
+            autohide: 1,
+            vq: 'tiny', // Lowest video quality since we only need audio
+            html5: 1,
+            cc_load_policy: 0, // Disable closed captions
+            color: 'white', // Simpler color scheme
+            hl: 'en', // Force English UI for smaller size
+        },
+    };
 
     const handleCreatePlaylist = async () => {
         if (user && newPlaylistName) {
@@ -224,7 +259,7 @@ const AudioPlayer: React.FC = () => {
             >
                 {track.name || ''}
             </TableCell>
-            <TableCell>{formatTime(track.duration)}</TableCell>
+            <TableCell>{formatDuration(track.duration)}</TableCell>
             <TableCell>
                 <Box 
                     display="flex" 
@@ -346,36 +381,110 @@ const AudioPlayer: React.FC = () => {
     };
 
     const handleTimeUpdate = () => {
-        if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
+        if (audioRef.current && !isDragging) {
+            const time = audioRef.current.currentTime;
+            setCurrentTime(time);
+            setSliderValue(time);
             setDuration(audioRef.current.duration || 0);
         }
     };
 
-    const handleSeek = (event: any, newValue: number | number[]) => {
-        if (audioRef.current) {
-            audioRef.current.currentTime = newValue as number;
-            setCurrentTime(newValue as number);
+    const handleSeek = (_event: any, newValue: number | number[]) => {
+        const value = Array.isArray(newValue) ? newValue[0] : newValue;
+        setSliderValue(value);
+        setCurrentTime(value);
+        
+        if (youtubeVideoId && youtubeRef.current?.internalPlayer) {
+            youtubeRef.current.internalPlayer.seekTo(value, true);
+        } else if (audioRef.current) {
+            audioRef.current.currentTime = value;
         }
     };
 
+    const handleSliderChange = (_event: Event | React.SyntheticEvent, newValue: number | number[]) => {
+        setIsDragging(true);
+        handleSeek(_event, newValue);
+    };
+
+    const handleSliderChangeCommitted = (_event: Event | React.SyntheticEvent, newValue: number | number[]) => {
+        setIsDragging(false);
+        handleSeek(_event, newValue);
+    };
+
+    // Update YouTube time tracking
+    useEffect(() => {
+        let timeUpdateInterval: NodeJS.Timeout;
+
+        if (youtubeVideoId && isPlaying) {
+            timeUpdateInterval = setInterval(async () => {
+                if (youtubeRef.current?.internalPlayer && !isDragging) {
+                    try {
+                        const currentTime = await youtubeRef.current.internalPlayer.getCurrentTime();
+                        const duration = await youtubeRef.current.internalPlayer.getDuration();
+                        setCurrentTime(currentTime);
+                        setSliderValue(currentTime);
+                        setDuration(duration);
+                    } catch (error) {
+                        console.error('Error updating YouTube time:', error);
+                    }
+                }
+            }, 1000);
+        }
+
+        return () => {
+            if (timeUpdateInterval) {
+                clearInterval(timeUpdateInterval);
+            }
+        };
+    }, [youtubeVideoId, isPlaying, isDragging]);
+
     const handleNextTrack = () => {
-        const nextIndex = (currentTrackIndex + 1) % (playlist?.tracks.length || 1);
+        const tracks = getTracks();
+        if (tracks.length === 0) return;
+        
+        const nextIndex = (currentTrackIndex + 1) % tracks.length;
         setCurrentTrackIndex(nextIndex);
         setCurrentTime(0);
+        setIsPlaying(false);
+        
+        // Immediately play the next track
+        const nextTrack = tracks[nextIndex];
+        if (nextTrack) {
+            handlePlayTrack(nextTrack).then(() => {
+                setIsPlaying(true);
+            });
+        }
     };
 
     const handlePreviousTrack = () => {
-        const prevIndex = (currentTrackIndex - 1 + (playlist?.tracks.length || 1)) % (playlist?.tracks.length || 1);
+        const tracks = getTracks();
+        if (tracks.length === 0) return;
+        
+        const prevIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
         setCurrentTrackIndex(prevIndex);
         setCurrentTime(0);
+        setIsPlaying(false);
+        
+        // Immediately play the previous track
+        const prevTrack = tracks[prevIndex];
+        if (prevTrack) {
+            handlePlayTrack(prevTrack).then(() => {
+                setIsPlaying(true);
+            });
+        }
     };
 
     const formatTime = (time: number) => {
+        if (!time || isNaN(time)) return '0:00';
+        
         const hours = Math.floor(time / 3600);
         const minutes = Math.floor((time % 3600) / 60);
         const seconds = Math.floor(time % 60);
-        return `${hours}:${minutes}:${seconds}`;
+        
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
     const seek = (seconds: number) => {
@@ -436,21 +545,33 @@ const AudioPlayer: React.FC = () => {
         }
     };
 
+    // Update handlePlayTrack for optimized loading
     const handlePlayTrack = async (track: Track) => {
         try {
             if (track.type === 'youtube') {
                 const videoId = validateYouTubeUrl(track.url);
                 if (videoId) {
                     setYoutubeVideoId(videoId);
+                    setDuration(track.duration);
                     if (audioRef.current) {
                         audioRef.current.src = '';
                     }
+                    if (youtubeRef.current?.internalPlayer) {
+                        await youtubeRef.current.internalPlayer.loadVideoById({
+                            videoId,
+                            startSeconds: 0,
+                            suggestedQuality: 'tiny' // Force lowest quality
+                        });
+                        youtubeRef.current.internalPlayer.setPlaybackQuality('tiny');
+                        setIsPlaying(true);
+                    }
                 }
             } else if (track.type === 'local') {
-                setYoutubeVideoId(null);
+                setYoutubeVideoId(undefined);
                 if (audioRef.current) {
                     audioRef.current.src = track.url;
                     await audioRef.current.play();
+                    setIsPlaying(true);
                 }
             }
         } catch (error) {
@@ -503,30 +624,92 @@ const AudioPlayer: React.FC = () => {
         }
     };
 
+    const handleYoutubeStateChange = (event: any) => {
+        switch (event.data) {
+            case YouTube.PlayerState.ENDED:
+                handleNextTrack();
+                break;
+            case YouTube.PlayerState.PLAYING:
+                setIsPlaying(true);
+                startYoutubeTimeUpdate();
+                break;
+            case YouTube.PlayerState.PAUSED:
+                setIsPlaying(false);
+                stopYoutubeTimeUpdate();
+                break;
+        }
+    };
+
+    const startYoutubeTimeUpdate = () => {
+        stopYoutubeTimeUpdate(); // Clear any existing interval
+        timeUpdateIntervalRef.current = setInterval(async () => {
+            if (youtubeRef.current?.internalPlayer && !isDragging) {
+                try {
+                    const currentTime = await youtubeRef.current.internalPlayer.getCurrentTime();
+                    const duration = await youtubeRef.current.internalPlayer.getDuration();
+                    setCurrentTime(currentTime);
+                    setSliderValue(currentTime);
+                    setDuration(duration);
+                } catch (error) {
+                    console.error('Error updating YouTube time:', error);
+                }
+            }
+        }, 1000);
+    };
+
+    const stopYoutubeTimeUpdate = () => {
+        if (timeUpdateIntervalRef.current) {
+            clearInterval(timeUpdateIntervalRef.current);
+            timeUpdateIntervalRef.current = null;
+        }
+    };
+
+    // Clean up on unmount
+    useEffect(() => {
+        return () => {
+            stopYoutubeTimeUpdate();
+            if (youtubeRef.current?.internalPlayer) {
+                youtubeRef.current.internalPlayer.stopVideo();
+            }
+        };
+    }, []);
+
+    // Update YouTube player component
+    const renderYoutubePlayer = () => (
+        <Box sx={{ 
+            display: 'none',
+            position: 'absolute',
+            top: '-9999px',
+            left: '-9999px'
+        }}>
+            <YouTube
+                videoId={youtubeVideoId || ''} // Provide empty string as fallback
+                ref={youtubeRef}
+                onStateChange={handleYoutubeStateChange}
+                onReady={(event) => {
+                    const player = event.target;
+                    // Set lowest video quality
+                    player.setPlaybackQuality('tiny');
+                    // Optimize for audio
+                    player.setVolume(100);
+                    // Get duration
+                    const duration = player.getDuration();
+                    setDuration(duration);
+                    // Play if needed
+                    if (isPlaying) {
+                        player.playVideo();
+                    }
+                }}
+                opts={youtubeOpts}
+            />
+        </Box>
+    );
+
     return (
         <Box>
             {renderPlaylistSelector()}
             {renderNewPlaylistDialog()}
-            {youtubeVideoId ? (
-                <YouTube
-                    videoId={youtubeVideoId}
-                    ref={youtubeRef}
-                    onStateChange={(event) => {
-                        if (event.data === YouTube.PlayerState.ENDED) {
-                            handleNextTrack();
-                        }
-                    }}
-                    opts={{
-                        height: '0',
-                        width: '0',
-                        playerVars: {
-                            autoplay: isPlaying ? 1 : 0,
-                            controls: 0,
-                            start: Math.floor(currentTime),
-                        },
-                    }}
-                />
-            ) : (
+            {youtubeVideoId ? renderYoutubePlayer() : (
                 <audio
                     ref={audioRef}
                     src={getCurrentTrack()?.url || ''}
@@ -557,9 +740,10 @@ const AudioPlayer: React.FC = () => {
             <Box display="flex" alignItems="center">
                 <Typography>{formatTime(currentTime)}</Typography>
                 <Slider
-                    value={currentTime}
-                    max={duration || 0}
-                    onChange={handleSeek}
+                    value={sliderValue}
+                    max={duration || 100}
+                    onChange={handleSliderChange}
+                    onChangeCommitted={handleSliderChangeCommitted}
                     style={{ margin: '0 16px', flex: 1, color: 'lightgrey' }}
                 />
                 <Typography>{formatTime(duration)}</Typography>
