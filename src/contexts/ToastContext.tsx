@@ -16,7 +16,7 @@ const InnerToastProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enqueueSnackbar(message, {
       variant,
       anchorOrigin: { vertical: 'top', horizontal: 'center' },
-      autoHideDuration: 3000
+      autoHideDuration: 3000  // 3 seconds
     });
   };
 
@@ -29,7 +29,10 @@ const InnerToastProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <SnackbarProvider maxSnack={3}>
+    <SnackbarProvider 
+      maxSnack={3} 
+      autoHideDuration={3000}  // Add default duration here as well
+    >
       <InnerToastProvider>
         {children}
       </InnerToastProvider>
