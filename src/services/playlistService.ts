@@ -1,5 +1,5 @@
 import { db } from '../firebase.ts';
-import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
 import { Track, Playlist, UserPlaylists, YouTubePlaylist } from '../types/playlist.ts';
 import { parseDuration } from '../utils/youtube.ts';
 
@@ -410,5 +410,22 @@ export const playlistService = {
         playlists.push(doc.data() as Playlist);
     });
     return playlists;
-  }
+  },
+
+  // Add this new method
+  async deletePlaylist(userId: string, playlistId: string): Promise<void> {
+    try {
+      // Don't allow deletion of special playlists
+      const protectedPlaylists = ['queue', 'favorites', 'default'];
+      if (protectedPlaylists.includes(playlistId)) {
+        throw new Error('Cannot delete this playlist');
+      }
+
+      const playlistRef = doc(db, `users/${userId}/playlists/${playlistId}`);
+      await deleteDoc(playlistRef);
+    } catch (error) {
+      console.error('Error deleting playlist:', error);
+      throw error;
+    }
+  },
 };

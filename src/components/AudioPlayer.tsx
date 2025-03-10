@@ -28,6 +28,9 @@ import { getVideoDetails, validateYouTubeUrl, formatDuration, extractYoutubePlay
 import { getAudioMetadata } from '../utils/audioMetadata.ts';
 import PlaybackControls from './AudioPlayer/PlaybackControls.tsx';
 import SpeedControls from './AudioPlayer/SpeedControls.tsx';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
+import QueueMusicIcon from '@mui/icons-material/QueueMusic'; // Add this import
 
 const AudioPlayer: React.FC = () => {
     const { showToast } = useToast();
@@ -97,6 +100,9 @@ const AudioPlayer: React.FC = () => {
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
     const [playlists, setPlaylists] = useState<Playlist[]>([]); // Add state for playlists
+
+    const [showPlaylistDropdown, setShowPlaylistDropdown] = useState(false);
+    const [editingPlaylistName, setEditingPlaylistName] = useState<string | null>(null);
 
     const loadPlaylists = async () => {
         if (user) {
@@ -1130,6 +1136,128 @@ const AudioPlayer: React.FC = () => {
         refreshPlaylist();
     };
 
+    const handleUpdatePlaylistName = async (playlistId: string, newName: string) => {
+        try {
+            if (!user) return;
+            await playlistService.updatePlaylist(user.uid, playlistId, {
+                ...playlists.find(p => p.id === playlistId)!,
+                name: newName
+            });
+            await loadPlaylists();
+            setEditingPlaylistName(null);
+        } catch (error) {
+            console.error('Error updating playlist name:', error);
+            showToast('Failed to update playlist name', 'error');
+        }
+    };
+
+    // Add this function to handle adding entire playlist to queue
+    const handleAddPlaylistToQueue = async (playlistToAdd: Playlist) => {
+        try {
+            if (!playlistToAdd.tracks.length) {
+                showToast('Playlist is empty', 'info');
+                return;
+            }
+            
+            // Get current queue
+            const queuePlaylist = playlists.find(p => p.id === 'queue');
+            if (queuePlaylist) {
+                const updatedTracks = [...queuePlaylist.tracks, ...playlistToAdd.tracks];
+                await playlistService.updatePlaylist(user!.uid, 'queue', {
+                    ...queuePlaylist,
+                    tracks: updatedTracks
+                });
+                showToast('Added playlist to queue', 'success');
+                refreshPlaylist();
+            }
+        } catch (error) {
+            console.error('Error adding playlist to queue:', error);
+            showToast('Failed to add playlist to queue', 'error');
+        }
+    };
+
+    // Add this function to handle adding single track to queue
+    const handleAddTrackToQueue = async (track: Track) => {
+        try {
+            await playlistService.addToQueue(user!.uid, track);
+            showToast('Added track to queue', 'success');
+        } catch (error) {
+            console.error('Error adding track to queue:', error);
+            showToast('Failed to add track to queue', 'error');
+        }
+    };
+
+    // Update the playlist header section
+    const renderPlaylistHeader = () => (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+                {playlists.find(p => p.id === currentPlaylistId)?.name || 'Playlist'}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton
+                    onClick={() => {
+                        const currentPlaylist = playlists.find(p => p.id === currentPlaylistId);
+                        if (currentPlaylist) {
+                            handleAddPlaylistToQueue(currentPlaylist);
+                        }
+                    }}
+                    title="Add entire playlist to queue"
+                >
+                    <QueueMusicIcon />
+                </IconButton>
+                <IconButton onClick={() => setShowPlaylistDropdown(!showPlaylistDropdown)}>
+                    {showPlaylistDropdown ? <ArrowDropUpIcon /> : <ArrowDropDownIcon />}
+                </IconButton>
+            </Box>
+        </Box>
+    );
+
+    // Update the playlist track row rendering
+    const renderPlaylistTrackRow = (track: Track, index: number) => (
+        <TableRow
+            key={track.id}
+            sx={{
+                backgroundColor: index === currentTrackIndex ? 'action.selected' : 'inherit',
+                '&:hover': {
+                    backgroundColor: 'action.hover',
+                },
+            }}
+        >
+            <TableCell>{track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}</TableCell>
+            {!isSmallScreen && <TableCell>{index + 1}</TableCell>}
+            <TableCell sx={cellStyles}>{track.name}</TableCell>
+            <TableCell>{formatDuration(track.duration)}</TableCell>
+            <TableCell>
+                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                    <IconButton
+                        size="small"
+                        onClick={() => handleAddTrackToQueue(track)}
+                        title="Add to queue"
+                    >
+                        <QueueMusicIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        size="small"
+                        onClick={() => {
+                            const newName = prompt('Edit track name:', track.name);
+                            if (newName && newName !== track.name) {
+                                updateTrack(track.id, { name: newName });
+                            }
+                        }}
+                    >
+                        <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        size="small"
+                        onClick={() => handleRemoveTrack(track.id)}
+                    >
+                        <DeleteIcon fontSize="small" />
+                    </IconButton>
+                </Box>
+            </TableCell>
+        </TableRow>
+    );
+
     return (
         <Box sx={{ p: 2 }}>
             {/* Audio/YouTube Players */}
@@ -1186,39 +1314,173 @@ const AudioPlayer: React.FC = () => {
                     </Box>
                 </Paper>
 
-                {/* Playlists */}
+                {/* Playlists Panel */}
                 <Paper elevation={3} sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                        <Select
-                            value={currentPlaylistId}
-                            onChange={(e) => setCurrentPlaylistId(e.target.value)}
-                            size="small"
-                            fullWidth
-                        >
+                    {renderPlaylistHeader()}
+                    {showPlaylistDropdown && (
+                        <Box sx={{ mb: 2, border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
                             {playlists.map((playlist) => (
-                                <MenuItem key={playlist.id} value={playlist.id}>
-                                    {playlist.name}
-                                </MenuItem>
+                                <Box
+                                    key={playlist.id}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        p: 1,
+                                        '&:hover': { bgcolor: 'action.hover' },
+                                        cursor: 'pointer',
+                                    }}
+                                    onClick={() => {
+                                        setCurrentPlaylistId(playlist.id);
+                                        setShowPlaylistDropdown(false);
+                                    }}
+                                >
+                                    {editingPlaylistName === playlist.id ? (
+                                        <TextField
+                                            size="small"
+                                            value={playlist.name}
+                                            autoFocus
+                                            onBlur={(e) => handleUpdatePlaylistName(playlist.id, e.target.value)}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleUpdatePlaylistName(playlist.id, (e.target as HTMLInputElement).value);
+                                                }
+                                            }}
+                                        />
+                                    ) : (
+                                        <>
+                                            <Typography>{playlist.name}</Typography>
+                                            <Box>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingPlaylistName(playlist.id);
+                                                    }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (window.confirm('Delete this playlist?')) {
+                                                            await playlistService.deletePlaylist(user!.uid, playlist.id);
+                                                            await loadPlaylists();
+                                                        }
+                                                    }}
+                                                >
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </Box>
+                                        </>
+                                    )}
+                                </Box>
                             ))}
-                        </Select>
-                        <Button
-                            startIcon={<PlaylistAddIcon />}
-                            onClick={() => setNewPlaylistDialog(true)}
-                            variant="contained"
-                        >
-                            New
-                        </Button>
-                        <Button
-                            startIcon={<YouTubeIcon />}
-                            onClick={() => setYoutubePlaylistDialog(true)}
-                            variant="contained"
-                        >
-                            Import
-                        </Button>
-                    </Box>
+                        </Box>
+                    )}
+
                     <TableContainer>
-                        {renderQueueTable()} {/* Use the same table renderer for consistency */}
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell 
+                                        width="10%" 
+                                        sx={{ 
+                                            p: { xs: 0.5, sm: 1 },
+                                            display: { xs: 'none', sm: 'table-cell' }
+                                        }}
+                                    ></TableCell>
+                                    {!isSmallScreen && (
+                                        <TableCell 
+                                            width="10%"
+                                            sx={{ p: { xs: 0.5, sm: 1 } }}
+                                        >#</TableCell>
+                                    )}
+                                    <TableCell 
+                                        width="45%"
+                                        sx={{ p: { xs: 0.5, sm: 1 } }}
+                                    >Name</TableCell>
+                                    <TableCell 
+                                        width="15%"
+                                        sx={{ 
+                                            p: { xs: 0.5, sm: 1 },
+                                            display: { xs: 'none', sm: 'table-cell' }
+                                        }}
+                                    >Length</TableCell>
+                                    <TableCell 
+                                        width="10%" 
+                                        align="center"
+                                        sx={{ p: { xs: 0.5, sm: 1 } }}
+                                    >Actions</TableCell>
+                                    <TableCell 
+                                        width="10%"
+                                        sx={{ p: { xs: 0.5, sm: 1 } }}
+                                    ></TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {getTracks().map((track, index) => renderPlaylistTrackRow(track, index))}
+                            </TableBody>
+                        </Table>
                     </TableContainer>
+
+                    {/* Footer */}
+                    <Box sx={{ mt: 2, borderTop: 1, borderColor: 'divider', pt: 2 }}>
+                        {/* Add Track Section */}
+                        <Box sx={{ mb: 2 }}>
+                            <TextField
+                                label="YouTube URL"
+                                value={newTrackUrl}
+                                onChange={(e) => setNewTrackUrl(e.target.value)}
+                                size="small"
+                                fullWidth
+                                sx={{ mb: 1 }}
+                            />
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Button 
+                                    variant="contained" 
+                                    onClick={handleAddTrack}
+                                    fullWidth
+                                >
+                                    Add Track
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    component="label"
+                                    fullWidth
+                                >
+                                    Add Local File
+                                    <input
+                                        type="file"
+                                        accept="audio/*"
+                                        onChange={addLocalTrackToPlaylist}
+                                        hidden
+                                    />
+                                </Button>
+                            </Box>
+                        </Box>
+
+                        {/* Playlist Actions */}
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Button
+                                variant="outlined"
+                                fullWidth
+                                startIcon={<YouTubeIcon />}
+                                onClick={() => setYoutubePlaylistDialog(true)}
+                            >
+                                Import YouTube Playlist
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                fullWidth
+                                startIcon={<PlaylistAddIcon />}
+                                onClick={() => setNewPlaylistDialog(true)}
+                            >
+                                Create New Playlist
+                            </Button>
+                        </Box>
+                    </Box>
                 </Paper>
             </Box>
 
