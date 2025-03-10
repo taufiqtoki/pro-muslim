@@ -20,3 +20,8 @@ put complete stopwatchcomponet and sleep tracker in a div, then tasbeeh tracker 
 +------------------+
 | Playlist Section |
 +------------------+
+
+PlaybackControls are in 1 line
+second jumpers are in 1 line in middle of second jumper make play button slightly bigger
+both lines should fit in phones portrait mode width also, remove extra spacing and use variable font size for responsiveness
+

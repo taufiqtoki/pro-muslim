@@ -134,43 +134,60 @@ export const usePlaylist = (playlistId?: string) => {
     }
   };
 
+  const checkDuplicate = (track: Track, tracks: Track[]): boolean => {
+    return tracks.some(t => {
+      if (t.type === 'youtube' && track.type === 'youtube') {
+        // Compare YouTube video IDs
+        const tId = t.url.split('v=')[1];
+        const trackId = track.url.split('v=')[1];
+        return tId === trackId;
+      }
+      // For local files, compare URLs and names
+      return t.url === track.url || 
+             (t.type === 'local' && track.type === 'local' && t.name === track.name);
+    });
+  };
+
   const addTrack = async (track: Track) => {
+    if (!playlist) {
+      const newPlaylist: Playlist = {
+        id: playlistId || 'default',
+        name: 'Default Playlist',
+        tracks: [track],
+        isPublic: false,
+        type: 'custom',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
+      setPlaylist(newPlaylist);
+      return;
+    }
+
+    // Check for duplicates
+    if (checkDuplicate(track, playlist.tracks)) {
+      throw new Error('This track already exists in the playlist');
+      return;
+    }
+
+    const updatedPlaylist = {
+      ...playlist,
+      tracks: [...playlist.tracks, track],
+      updatedAt: Date.now()
+    };
+
     if (!user) {
-      setPlaylist(prev => {
-        if (!prev) {
-          const newPlaylist: Playlist = {
-            id: playlistId || 'default',
-            name: 'Default Playlist',
-            tracks: [track],
-            isPublic: false,
-            type: 'custom',
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          };
-          localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
-          return newPlaylist;
-        }
-        
-        const updatedPlaylist: Playlist = {
-          ...prev,
-          tracks: [...prev.tracks, track],
-          updatedAt: Date.now()
-        };
-        localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
-        return updatedPlaylist;
-      });
+      localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
+      setPlaylist(updatedPlaylist);
       return;
     }
 
     try {
       await playlistService.addTrackToPlaylist(user.uid, playlistId || 'default', track);
-      setPlaylist(prev => prev ? {
-        ...prev,
-        tracks: [...prev.tracks, track],
-        updatedAt: Date.now()
-      } : null);
+      setPlaylist(updatedPlaylist);
     } catch (error) {
       console.error('Error adding track:', error);
+      throw error;
     }
   };
 

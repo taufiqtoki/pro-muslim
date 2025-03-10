@@ -9,6 +9,7 @@ export interface Track {
   metadata?: {
     lastModified: number;
     size: number;
+    mimeType?: string; // Add this field
   };
 }
 

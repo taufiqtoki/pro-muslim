@@ -137,22 +137,25 @@ export const playlistService = {
     }
   },
 
+  // Modify initializeDefaultPlaylists to only create default playlist
   async initializeDefaultPlaylists(userId: string): Promise<void> {
-    const defaultPlaylists = ['queue', 'online', 'offline', 'favorites'];
-    const batch = writeBatch(db);  // Fix batch creation
+    const defaultPlaylist: Omit<Playlist, 'id'> = {
+      name: 'New Playlist',
+      description: '',
+      tracks: [],
+      isPublic: false,
+      type: 'custom',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
 
-    for (const type of defaultPlaylists) {
-        const playlistRef = doc(db, `users/${userId}/playlists/${type}`);
-        batch.set(playlistRef, {
-            id: type,
-            name: type.charAt(0).toUpperCase() + type.slice(1),
-            type: type as 'queue' | 'online' | 'offline' | 'favorites',
-            tracks: [],
-            isPublic: false,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        }, { merge: true });
-    }
+    const batch = writeBatch(db);
+    const playlistRef = doc(db, `users/${userId}/playlists/default`);
+    
+    batch.set(playlistRef, {
+      ...defaultPlaylist,
+      id: 'default'
+    }, { merge: true });
 
     await batch.commit();
   },
@@ -374,11 +377,7 @@ export const playlistService = {
   },
 
   async clearQueue(userId: string): Promise<void> {
-    const queueRef = doc(db, `users/${userId}/playlists/queue`);
-    await updateDoc(queueRef, {
-        tracks: [],
-        updatedAt: Date.now()
-    });
+    await this.updateQueue(userId, []);
   },
 
   // Move track to specific position in playlist
@@ -427,5 +426,23 @@ export const playlistService = {
       console.error('Error deleting playlist:', error);
       throw error;
     }
+  },
+
+  // Add this new method for queue management
+  async getQueueTracks(userId: string): Promise<Track[]> {
+    const queueRef = doc(db, `users/${userId}/queue/current`);
+    const queueDoc = await getDoc(queueRef);
+    return queueDoc.exists() ? queueDoc.data().tracks : [];
+  },
+
+  async updateQueue(userId: string, tracks: Track[]): Promise<void> {
+    const queueRef = doc(db, `users/${userId}/queue/current`);
+    await setDoc(queueRef, { tracks, updatedAt: Date.now() });
+  },
+
+  async removeFromQueue(userId: string, trackId: string): Promise<void> {
+    const tracks = await this.getQueueTracks(userId);
+    const filteredTracks = tracks.filter(t => t.id !== trackId);
+    await this.updateQueue(userId, filteredTracks);
   },
 };
