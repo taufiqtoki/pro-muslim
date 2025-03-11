@@ -298,6 +298,15 @@ const AudioPlayer: React.FC = () => {
       setCurrentTime(time);
       setSliderValue(time);
       setDuration(audioRef.current.duration || 0);
+
+      // Update playback position state
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setPositionState({
+          duration: audioRef.current.duration || 0,
+          position: time,
+          playbackRate: audioRef.current.playbackRate
+        });
+      }
     }
   };
 
@@ -477,6 +486,17 @@ const AudioPlayer: React.FC = () => {
 
   const handlePlayTrack = async (track: Track) => {
     try {
+      // Update media session metadata when track changes
+      updateMediaSessionMetadata(track);
+      
+      // Reset YouTube if switching from YouTube to local file
+      if (youtubeVideoId && track.type === 'local') {
+        if (youtubeRef.current?.internalPlayer) {
+          await youtubeRef.current.internalPlayer.stopVideo();
+        }
+        setYoutubeVideoId(undefined);
+      }
+
       if (track.type === 'youtube') {
         // Extract video ID from URL
         const videoId = validateYouTubeUrl(track.url);
@@ -1468,6 +1488,39 @@ const AudioPlayer: React.FC = () => {
         console.error('Error saving queue:', error);
         showToast('Error saving queue', 'error');
       }
+    }
+  };
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', handlePlayPause);
+      navigator.mediaSession.setActionHandler('pause', handlePlayPause);
+      navigator.mediaSession.setActionHandler('previoustrack', handlePreviousTrack);
+      navigator.mediaSession.setActionHandler('nexttrack', handleNextTrack);
+      navigator.mediaSession.setActionHandler('seekbackward', () => seek(-10));
+      navigator.mediaSession.setActionHandler('seekforward', () => seek(10));
+    }
+  }, []);
+
+  const updateMediaSessionMetadata = (track: Track) => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.name,
+        artist: 'Pro Muslim App',
+        album: track.type === 'youtube' ? 'YouTube' : 'Local Audio',
+        artwork: [
+          {
+            src: track.thumbnail || '/icon-192x192.png', // Fallback to app icon
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: track.thumbnail || '/icon-512x512.png', // Fallback to app icon
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      });
     }
   };
 
