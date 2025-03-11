@@ -7,10 +7,11 @@ export interface Track {
   addedAt: number;
   type: 'youtube' | 'local';
   metadata?: {
-    lastModified: number;
-    size: number;
-    mimeType?: string; // Add this field
+    lastModified?: number;
+    size?: number;
+    mimeType?: string;
   };
+  videoId?: string; // Add this field for YouTube tracks
   localFileData?: {
     name: string;
     size: number;

@@ -91,11 +91,14 @@ const AudioPlayer: React.FC = () => {
     height: '1',
     width: '1',
     playerVars: {
-      autoplay: 0, controls: 0, origin: window.location.origin, enablejsapi: 1, modestbranding: 1,
-      rel: 0, showinfo: 0, fs: 0, playsinline: 1, disablekb: 1, iv_load_policy: 3, autohide: 1,
-      vq: 'tiny', html5: 1, cc_load_policy: 0, color: 'white', hl: 'en',
-      host: window.location.protocol + '//' + window.location.hostname,
-      widget_referrer: window.location.origin,
+      autoplay: 1,
+      controls: 0,
+      modestbranding: 1,
+      rel: 0,
+      showinfo: 0,
+      iv_load_policy: 3,
+      enablejsapi: 1,
+      playsinline: 1
     },
   };
 
@@ -188,7 +191,8 @@ const AudioPlayer: React.FC = () => {
           duration: trackData.duration,
           thumbnail: trackData.thumbnail,
           addedAt: Date.now(),
-          type: 'youtube'
+          type: 'youtube',
+          videoId: videoId // Add videoId to track data
         };
 
         // Strictly separate queue and playlist additions
@@ -473,7 +477,21 @@ const AudioPlayer: React.FC = () => {
 
   const handlePlayTrack = async (track: Track) => {
     try {
-      if (track.type === 'local') {
+      if (track.type === 'youtube') {
+        // Extract video ID from URL
+        const videoId = validateYouTubeUrl(track.url);
+        if (!videoId) {
+          showToast('Invalid YouTube URL', 'error');
+          return;
+        }
+        setYoutubeVideoId(videoId);
+        
+        // Wait for player to be ready
+        if (youtubeRef.current?.internalPlayer) {
+          await youtubeRef.current.internalPlayer.loadVideoById(videoId);
+          setIsPlaying(true);
+        }
+      } else if (track.type === 'local') {
         const file = await localFileService.getFile(track.id);
         if (!file) {
           showToast('Error: File not found', 'error');
@@ -491,8 +509,6 @@ const AudioPlayer: React.FC = () => {
             URL.revokeObjectURL(objectUrl);
           };
         }
-      } else {
-        // ...existing YouTube handling code...
       }
     } catch (error) {
       console.error('Error playing track:', error);
