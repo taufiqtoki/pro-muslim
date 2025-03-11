@@ -2,12 +2,20 @@ import { db } from '../firebase.ts';
 import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
 import { Track, Playlist, UserPlaylists, YouTubePlaylist } from '../types/playlist.ts';
 import { parseDuration } from '../utils/youtube.ts';
+import axios from 'axios';
 
 // Add this interface for video details
 interface VideoDetails {
     duration: number;
     isPlayable: boolean;
 }
+
+const fetchPlaylistTracks = async (playlistId: string): Promise<Track[]> => {
+  // Implement the logic to fetch tracks from a YouTube playlist
+  // This is a placeholder implementation
+  const response = await axios.get(`/api/youtube/playlist/${playlistId}`);
+  return response.data.tracks;
+};
 
 export const playlistService = {
   // Create a new playlist
@@ -445,4 +453,6 @@ export const playlistService = {
     const filteredTracks = tracks.filter(t => t.id !== trackId);
     await this.updateQueue(userId, filteredTracks);
   },
+
+  fetchPlaylistTracks,
 };

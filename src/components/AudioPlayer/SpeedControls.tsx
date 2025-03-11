@@ -13,7 +13,7 @@ const SpeedControls: React.FC<SpeedControlsProps> = ({ onSpeedChange }) => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      gap: 1,
+      gap: 0.5, // Reduced gap between buttons
       width: 'fit-content',
       margin: '0 auto',
       minWidth: 'min-content'
@@ -25,9 +25,10 @@ const SpeedControls: React.FC<SpeedControlsProps> = ({ onSpeedChange }) => {
           variant="outlined"
           size="small"
           sx={{
-            minWidth: '48px',
-            px: 1,
-            py: 0.5
+            minWidth: '40px', // Reduced from 48px
+            px: 0.5, // Reduced horizontal padding
+            py: 0.5,
+            fontSize: '0.75rem' // Smaller font size
           }}
         >
           {speed}x

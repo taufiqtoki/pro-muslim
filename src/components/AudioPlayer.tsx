@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Box, IconButton, Slider, Typography, TextField, Button, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Grid, useTheme, Select, MenuItem, Dialog,
-  DialogTitle, DialogContent, DialogActions, CircularProgress
+  DialogTitle, DialogContent, DialogActions, CircularProgress, Menu
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -36,11 +36,13 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import { useQueue } from '../hooks/useQueue.ts';
-import ClearAllIcon from '@mui/icons-material/ClearAll'; // Add this import
+import ClearAllIcon from '@mui/icons-material/ClearAll';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeDownIcon from '@mui/icons-material/VolumeDown';
 import VolumeMuteIcon from '@mui/icons-material/VolumeMute';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import SaveIcon from '@mui/icons-material/Save';
+import AddIcon from '@mui/icons-material/Add';
 
 const SUPPORTED_FORMATS = [
   'audio/*', 'video/mp4', 'video/webm', 'video/ogg', 'video/x-matroska', 'video/quicktime',
@@ -82,6 +84,7 @@ const AudioPlayer: React.FC = () => {
   const [volume, setVolume] = useState(100);
   const [previousVolume, setPreviousVolume] = useState(100);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
+  const [volumeTimeout, setVolumeTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const youtubeOpts = {
     height: '1',
@@ -715,7 +718,7 @@ const AudioPlayer: React.FC = () => {
   const QUEUE_EMPTY_ROWS = 5;    // Changed from 6 to 5
   const PLAYLIST_EMPTY_ROWS = 4; // Changed from 5 to 4
 
-  const getTracks = () => playlist?.tracks || [];
+  const getTracks = () => queueTracks;
   const getCurrentTrack = () => getTracks()[currentTrackIndex] || null;
 
   const handleVolumeChange = (event: Event, newValue: number | number[]) => {
@@ -730,13 +733,32 @@ const AudioPlayer: React.FC = () => {
   };
 
   const toggleMute = () => {
-    if (volume > 0) {
-      setPreviousVolume(volume);
-      handleVolumeChange({} as Event, 0);
+    if (isVolumeOpen) {
+      if (volume > 0) {
+        setPreviousVolume(volume);
+        handleVolumeChange({} as Event, 0);
+      } else {
+        handleVolumeChange({} as Event, previousVolume);
+      }
     } else {
-      handleVolumeChange({} as Event, previousVolume);
+      handleVolumeOpen();
     }
   };
+
+  const handleVolumeOpen = () => {
+    setIsVolumeOpen(true);
+    if (volumeTimeout) clearTimeout(volumeTimeout);
+    const timeout = setTimeout(() => {
+      setIsVolumeOpen(false);
+    }, 3000);
+    setVolumeTimeout(timeout);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (volumeTimeout) clearTimeout(volumeTimeout);
+    };
+  }, [volumeTimeout]);
 
   const getVolumeIcon = () => {
     if (volume === 0) return <VolumeOffIcon />;
@@ -774,7 +796,8 @@ const AudioPlayer: React.FC = () => {
           color: 'text.secondary',
           minWidth: '32px', // Reduced fixed width
           textAlign: 'right',
-          fontSize: '0.875rem'
+          fontSize: '0.875rem',
+          marginRight: '2px' // Added right margin
         }}>
           {formatTime(currentTime)}
         </Typography>
@@ -811,26 +834,38 @@ const AudioPlayer: React.FC = () => {
           width: '32px' // Match other elements width
         }}>
           <IconButton 
-            onClick={() => setIsVolumeOpen(!isVolumeOpen)}
+            onClick={toggleMute}
+            onMouseEnter={handleVolumeOpen}
             size="small"
             sx={{ p: 0.5 }} // Reduced padding further
           >
             {getVolumeIcon()}
           </IconButton>
           {isVolumeOpen && (
-            <Paper sx={{
-              position: 'absolute',
-              bottom: '-160px', // Position below the button
-              left: '50%',
-              transform: 'translateX(-50%)',
-              p: 1,
-              width: 40,
-              height: 150,
-              display: 'flex',
-              alignItems: 'center',
-              zIndex: 2,
-              boxShadow: 3
-            }}>
+            <Paper 
+              sx={{
+                position: 'absolute',
+                // top: '-90px', // Adjusted to match new height
+                left: '50%',
+                transform: 'translateX(-50%)',
+                p: 2,
+                width: 30,
+                height: 80, // Changed from 100 to 90
+                display: 'flex',
+                alignItems: 'center',
+                zIndex: 4,
+                boxShadow: 3
+              }}
+              onMouseEnter={() => {
+                if (volumeTimeout) clearTimeout(volumeTimeout);
+              }}
+              onMouseLeave={() => {
+                const timeout = setTimeout(() => {
+                  setIsVolumeOpen(false);
+                }, 3000);
+                setVolumeTimeout(timeout);
+              }}
+            >
               <Slider
                 orientation="vertical"
                 value={volume}
@@ -1044,10 +1079,36 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
+  const handleQueueUrlSubmit = async () => {
+    if (!queuePlaylistUrl) return;
+    
+    try {
+      // Check if it's a playlist URL
+      const playlistId = extractYoutubePlaylistId(queuePlaylistUrl);
+      if (playlistId) {
+        // Import playlist directly to queue
+        const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
+        setImportProgress({ current: 0, total: details.itemCount });
+        const tracks = await playlistService.fetchYouTubePlaylistTracks(playlistId);
+        for (const track of tracks) {
+          await addToQueue(track); // Add each track to queue
+        }
+        showToast('Playlist imported to queue successfully', 'success');
+      } else {
+        // Try adding as single track
+        await handleAddTrack();
+      }
+      setQueuePlaylistUrl('');
+    } catch (error) {
+      showToast('Error processing URL', 'error');
+    }
+  };
+
   const renderQueuePanel = () => (
     <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '405px' }}>
       {renderQueueHeader()}
-      <TableContainer sx={tableContainerSx}>        <DragDropContext onDragEnd={onDragEnd}>
+      <TableContainer sx={tableContainerSx}>
+        <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="queue">
             {(provided) => (
               <Table size="small" stickyHeader sx={commonTableSx}>
@@ -1063,7 +1124,6 @@ const AudioPlayer: React.FC = () => {
         </DragDropContext>
       </TableContainer>
       <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
-        {/* URL input section */}
         <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
           <TextField
             label="YouTube URL"
@@ -1075,11 +1135,11 @@ const AudioPlayer: React.FC = () => {
               endAdornment: (
                 <Button
                   variant="contained"
-                  onClick={handleAddTrack}
+                  onClick={handleQueueUrlSubmit}
                   size="small"
                   sx={addButtonStyles}
                 >
-                  <YouTubeIcon sx={{ fontSize: '20px' }} />
+                  <AddIcon sx={{ fontSize: '20px' }} />
                 </Button>
               ),
             }}
@@ -1100,9 +1160,24 @@ const AudioPlayer: React.FC = () => {
             />
           </Button>
         </Box>
-        
-        {/* Add playlist buttons here, same as playlist panel */}
-        {renderPlaylistButtons()}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            fullWidth
+            startIcon={<YouTubeIcon />}
+            onClick={() => setYoutubePlaylistDialog(true)}
+          >
+            Playlist
+          </Button>
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={() => setNewPlaylistDialog(true)}
+            startIcon={<SaveIcon />}
+          >
+            Queue
+          </Button>
+        </Box>
       </Box>
     </Paper>
   );
@@ -1194,38 +1269,43 @@ const AudioPlayer: React.FC = () => {
 
   const renderNewPlaylistDialog = () => (
     <Dialog open={newPlaylistDialog} onClose={() => setNewPlaylistDialog(false)}>
-      <DialogTitle>Create New Playlist</DialogTitle>
+      <DialogTitle>Save Queue as List</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
           margin="dense"
-          label="Playlist Name"
+          label="List Name"
           fullWidth
           value={newPlaylistData.name}
           onChange={(e) => setNewPlaylistData(prev => ({ ...prev, name: e.target.value }))}
-          helperText="Enter a name for your new playlist"
+          helperText="Enter a name for your new list"
         />
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setNewPlaylistDialog(false)}>Cancel</Button>
-        <Button onClick={handleCreatePlaylist}>Create</Button>
+        <Button 
+          onClick={handleSaveQueue}
+          disabled={!newPlaylistData.name || queueTracks.length === 0}
+        >
+          Save
+        </Button>
       </DialogActions>
     </Dialog>
   );
   
   const renderYoutubePlaylistDialog = () => (
     <Dialog open={youtubePlaylistDialog} onClose={() => !importLoading && setYoutubePlaylistDialog(false)}>
-      <DialogTitle>Import YouTube Playlist</DialogTitle>
+      <DialogTitle>Import YouTube List</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
           margin="dense"
-          label="YouTube Playlist URL"
+          label="YouTube List URL"
           fullWidth
           disabled={importLoading}
           value={newPlaylistData.youtubeUrl}
           onChange={(e) => setNewPlaylistData(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-          helperText="Enter the full YouTube playlist URL"
+          helperText="Enter the full YouTube list URL"
         />
         {importLoading && (
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1288,9 +1368,10 @@ const AudioPlayer: React.FC = () => {
                 <Button
                   variant="contained"
                   onClick={handleAddTrack}
+                  size="small"
                   sx={addButtonStyles}
                 >
-                  <YouTubeIcon sx={{ fontSize: '20px' }} />
+                  <AddIcon sx={{ fontSize: '20px' }} />
                 </Button>
               ),
             }}
@@ -1312,12 +1393,12 @@ const AudioPlayer: React.FC = () => {
           </Button>
         </Box>
         
-        {renderPlaylistButtons()}
+        {renderQueueButtons()}
       </Box>
     </Paper>
   );
 
-  const renderPlaylistButtons = () => (
+  const renderQueueButtons = () => (
     <Box sx={{ display: 'flex', gap: 1 }}>
       <Button
         variant="outlined"
@@ -1331,11 +1412,35 @@ const AudioPlayer: React.FC = () => {
         variant="outlined"
         fullWidth
         onClick={() => setNewPlaylistDialog(true)}
+        startIcon={<SaveIcon />}
       >
-        New Playlist
+        Playlist
       </Button>
     </Box>
   );
+
+  const handleSaveQueue = async () => {
+    if (user && newPlaylistData.name && queueTracks.length > 0) {
+      try {
+        const newPlaylistId = await playlistService.createPlaylist(user.uid, {
+          name: newPlaylistData.name,
+          description: '',
+          tracks: queueTracks,
+          isPublic: false,
+          type: 'custom',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+        setNewPlaylistDialog(false);
+        setNewPlaylistData(prev => ({ ...prev, name: '' }));
+        showToast('Queue saved as playlist successfully', 'success');
+        await loadPlaylists();
+      } catch (error) {
+        console.error('Error saving queue:', error);
+        showToast('Error saving queue', 'error');
+      }
+    }
+  };
 
   return (
     <Box sx={{ p: 2 }}>
