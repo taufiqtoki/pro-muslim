@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Box, IconButton, Slider, Typography, TextField, Button, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Grid, useMediaQuery, useTheme, Select, MenuItem, Dialog,
+  TableContainer, TableHead, TableRow, Grid, useTheme, Select, MenuItem, Dialog,
   DialogTitle, DialogContent, DialogActions, CircularProgress
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -37,8 +37,11 @@ import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import { useQueue } from '../hooks/useQueue.ts';
 import ClearAllIcon from '@mui/icons-material/ClearAll'; // Add this import
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import VolumeDownIcon from '@mui/icons-material/VolumeDown';
+import VolumeMuteIcon from '@mui/icons-material/VolumeMute';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 
-// Supported formats for file input
 const SUPPORTED_FORMATS = [
   'audio/*', 'video/mp4', 'video/webm', 'video/ogg', 'video/x-matroska', 'video/quicktime',
   'video/x-msvideo', 'video/x-ms-wmv', 'video/x-flv'
@@ -61,7 +64,6 @@ const AudioPlayer: React.FC = () => {
   const youtubeRef = useRef<any>(null);
   const { user } = useAuth();
   const theme = useTheme();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string>('default');
   const { playlist, loading, error, addTrack, removeTrack, updateTrack, refreshPlaylist } = usePlaylist(currentPlaylistId);
   const { queueTracks, addToQueue, removeFromQueue, clearQueue } = useQueue();
@@ -77,8 +79,10 @@ const AudioPlayer: React.FC = () => {
   const [editingPlaylistName, setEditingPlaylistName] = useState<string | null>(null);
   const [queuePlaylistUrl, setQueuePlaylistUrl] = useState('');
   const [playlistUrl, setPlaylistUrl] = useState('');
+  const [volume, setVolume] = useState(100);
+  const [previousVolume, setPreviousVolume] = useState(100);
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
 
-  // YouTube player options
   const youtubeOpts = {
     height: '1',
     width: '1',
@@ -91,7 +95,6 @@ const AudioPlayer: React.FC = () => {
     },
   };
 
-  // Add this new style object near the top with other style definitions
   const textFieldStyles = {
     '& .MuiOutlinedInput-root': {
       pr: 0, // Remove right padding to align button perfectly
@@ -115,7 +118,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Load playlists
   const loadPlaylists = async () => {
     if (user) {
       try {
@@ -135,7 +137,6 @@ const AudioPlayer: React.FC = () => {
     loadPlaylists();
   }, [user]);
 
-  // Create new playlist
   const handleCreatePlaylist = async () => {
     if (user && newPlaylistData.name) {
       try {
@@ -155,7 +156,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Add track to queue
   const handleAddTrackToQueue = async (track: Track) => {
     try {
       await addToQueue(track);
@@ -165,7 +165,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Update handleAddTrack to handle URL from different sources
   const handleAddTrack = async () => {
     const urlToAdd = queuePlaylistUrl || playlistUrl || newTrackUrl;
     if (!urlToAdd) return;
@@ -188,7 +187,6 @@ const AudioPlayer: React.FC = () => {
           type: 'youtube'
         };
 
-        // Add to queue or playlist based on which URL was used
         if (queuePlaylistUrl) {
           await addToQueue(newTrack);
           setQueuePlaylistUrl('');
@@ -204,7 +202,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Load favorites
   useEffect(() => {
     const loadFavorites = async () => {
       if (user) {
@@ -228,7 +225,6 @@ const AudioPlayer: React.FC = () => {
     loadFavorites();
   }, [user]);
 
-  // Toggle favorite
   const toggleFavorite = async (trackId: string) => {
     try {
       const isFavorite = favorites.includes(trackId);
@@ -247,7 +243,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Play/Pause handler
   const handlePlayPause = async () => {
     const currentTrack = getCurrentTrack();
     if (!currentTrack) return;
@@ -273,7 +268,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Time update for audio
   const handleTimeUpdate = () => {
     if (audioRef.current && !isDragging) {
       const time = audioRef.current.currentTime;
@@ -283,7 +277,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Seek handler
   const handleSeek = (_event: any, newValue: number | number[]) => {
     const value = Array.isArray(newValue) ? newValue[0] : newValue;
     setSliderValue(value);
@@ -305,7 +298,6 @@ const AudioPlayer: React.FC = () => {
     handleSeek(_event, newValue);
   };
 
-  // YouTube time update
   useEffect(() => {
     let timeUpdateInterval: NodeJS.Timeout;
     if (youtubeVideoId && isPlaying) {
@@ -328,7 +320,6 @@ const AudioPlayer: React.FC = () => {
     };
   }, [youtubeVideoId, isPlaying, isDragging]);
 
-  // Next/Previous track
   const handleNextTrack = () => {
     const tracks = getTracks();
     if (tracks.length === 0) return;
@@ -351,7 +342,6 @@ const AudioPlayer: React.FC = () => {
     if (prevTrack) handlePlayTrack(prevTrack).then(() => setIsPlaying(true));
   };
 
-  // Format time
   const formatTime = (time: number) => {
     if (!time || isNaN(time)) return '0:00';
     const hours = Math.floor(time / 3600);
@@ -361,7 +351,6 @@ const AudioPlayer: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Seek by seconds
   const seek = async (seconds: number) => {
     const currentTrack = getCurrentTrack();
     if (!currentTrack) return;
@@ -383,7 +372,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Change playback rate
   const changePlaybackRate = (rate: number) => {
     const currentTrack = getCurrentTrack();
     if (!currentTrack) return;
@@ -396,7 +384,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Extract audio from video
   const extractAudioFromVideo = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const video = document.createElement('video');
@@ -427,7 +414,6 @@ const AudioPlayer: React.FC = () => {
     });
   };
 
-  // Add local track
   const addLocalTrackToPlaylist = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
@@ -487,7 +473,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Play track
   const handlePlayTrack = async (track: Track) => {
     try {
       if (track.type === 'youtube') {
@@ -516,7 +501,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Remove track
   const handleRemoveTrack = async (trackId: string) => {
     try {
       const track = playlist?.tracks.find(t => t.id === trackId);
@@ -536,7 +520,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Track selection
   const handleTrackSelection = async (index: number) => {
     const track = getTracks()[index];
     if (!track) return;
@@ -552,7 +535,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // YouTube state change
   const handleYoutubeStateChange = (event: any) => {
     switch (event.data) {
       case YouTube.PlayerState.ENDED:
@@ -593,7 +575,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Cleanup
   useEffect(() => {
     return () => {
       stopYoutubeTimeUpdate();
@@ -601,7 +582,6 @@ const AudioPlayer: React.FC = () => {
     };
   }, []);
 
-  // Render YouTube player
   const renderYoutubePlayer = () => (
     <Box sx={{ display: 'none' }}>
       <YouTube
@@ -631,7 +611,6 @@ const AudioPlayer: React.FC = () => {
     </Box>
   );
 
-  // Import YouTube playlist
   const handleImportYoutubePlaylist = async () => {
     try {
       setImportLoading(true);
@@ -662,32 +641,39 @@ const AudioPlayer: React.FC = () => {
   };
 
   const cellStyles = {
-    cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-    maxWidth: { xs: '150px', sm: '250px' }, width: { xs: '150px', sm: '250px' }, display: 'flex', // Changed from 'block' to 'inline-block'
-    alignItems: 'center', // Added to align text vertically
-    height: '40px'      // Added to ensure consistent height
+    padding: '0 8px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    lineHeight: '36px',
+    '& > span': {
+      display: 'block',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    }
   };
 
   const renderEmptyRows = (count: number) => (
     Array.from({ length: count }).map((_, index) => (
       <TableRow 
         key={`empty-${index}`}
-        sx={{
-          height: '40px !important', // Force height with !important
-          '& td': { 
-            height: '40px !important', // Force height with !important
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            // Remove bottom border for last row
-            ...(index === count - 1 && {
-              borderBottom: 'none'
-            })
-          }
+        sx={{ 
+          height: '36px',
+          minHeight: '36px',
+          maxHeight: '36px',
         }}
       >
         <TableCell 
-          colSpan={isSmallScreen ? 4 : 5} 
-          sx={{ p: 0.75 }} // Match the padding of regular cells
+          colSpan={5} 
+          sx={{ 
+            height: '36px',
+            minHeight: '36px',
+            maxHeight: '36px',
+            borderBottom: index === count - 1 ? 'none' : '1px solid',
+            borderColor: 'divider',
+            padding: '0 2px',
+          }} 
         />
       </TableRow>
     ))
@@ -695,80 +681,189 @@ const AudioPlayer: React.FC = () => {
 
   const tableContainerStyles = {
     flex: 1,
-    maxHeight: '270px', // Change from height to maxHeight
-    overflow: 'hidden', // Change from 'auto' to 'hidden'
-    borderBottom: 1,
+    height: '275px',
+    overflow: 'auto', // Change to 'auto' to enable scrolling
+    borderBottom: 'none',
     borderColor: 'divider',
-    '& .MuiTableCell-root': {
-      py: 0.75,
-      height: '30px', // Change row height to 30px
-      lineHeight: '30px', // Add this to align text vertically
-      '& > *': {
-        verticalAlign: 'middle', // Add this to align icons with text
+    '& .MuiTable-root': {
+      tableLayout: 'fixed',
+      borderCollapse: 'separate',
+      borderSpacing: 0,
+    },
+    '& .MuiTableHead-root': {
+      position: 'sticky',
+      top: 0,
+      zIndex: 2,
+      backgroundColor: 'background.paper',
+    },
+    '& .MuiTableBody-root': {
+      '& .MuiTableRow-root': {
+        height: '40px !important', // Force consistent height
       }
     },
-    '& .MuiTableRow-root': {
-      height: '30px', // Change row height to 30px
-    },
-    '& .MuiTableCell-head': {
-      height: '30px', // Change heading height to 30px
-      backgroundColor: 'background.paper',
-      fontWeight: 'bold'
+    '& .MuiTableCell-root': {
+      height: '36px',
+      minHeight: '36px',
+      maxHeight: '36px',
+      lineHeight: '36px',
+      padding: '0 2px',
+      borderBottom: '1px solid',
+      borderColor: 'divider',
     }
   };
 
   const QUEUE_EMPTY_ROWS = 5;    // Changed from 6 to 5
   const PLAYLIST_EMPTY_ROWS = 4; // Changed from 5 to 4
 
-  // Render functions
   const getTracks = () => playlist?.tracks || [];
   const getCurrentTrack = () => getTracks()[currentTrackIndex] || null;
 
+  const handleVolumeChange = (event: Event, newValue: number | number[]) => {
+    const value = Array.isArray(newValue) ? newValue[0] : newValue;
+    setVolume(value);
+    if (youtubeRef.current?.internalPlayer) {
+      youtubeRef.current.internalPlayer.setVolume(value);
+    }
+    if (audioRef.current) {
+      audioRef.current.volume = value / 100;
+    }
+  };
+
+  const toggleMute = () => {
+    if (volume > 0) {
+      setPreviousVolume(volume);
+      handleVolumeChange({} as Event, 0);
+    } else {
+      handleVolumeChange({} as Event, previousVolume);
+    }
+  };
+
+  const getVolumeIcon = () => {
+    if (volume === 0) return <VolumeOffIcon />;
+    if (volume < 30) return <VolumeMuteIcon />;
+    if (volume < 70) return <VolumeDownIcon />;
+    return <VolumeUpIcon />;
+  };
+
   const renderMainContent = () => (
-    <Paper elevation={3} sx={{ p: { xs: 1, sm: 2 }, mb: 2, bgcolor: 'background.paper' }}>
+    <Paper elevation={3} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
       {getCurrentTrack()?.thumbnail && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
           <img
             src={getCurrentTrack().thumbnail}
             alt="Track Thumbnail"
             style={{
-              width: isSmallScreen ? '100px' : '150px', height: isSmallScreen ? '100px' : '150px',
-              borderRadius: '12px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', objectFit: 'cover',
+              width: '150px', 
+              height: '150px',
+              borderRadius: '12px', 
+              boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', 
+              objectFit: 'cover',
             }}
           />
         </Box>
       )}
       {renderMainTitle()}
-      <Box sx={{ px: { xs: 1, sm: 2 }, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'center', gap: 1 }}>
-        <Typography sx={{ color: 'text.secondary' }}>{formatTime(currentTime)}</Typography>
-        <Slider
-          value={sliderValue}
-          max={duration || 100}
-          onChange={handleSliderChange}
-          onChangeCommitted={handleSliderChangeCommitted}
-          sx={{
-            flex: 1, color: 'primary.main',
-            '& .MuiSlider-thumb': { width: 12, height: 12, boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)' },
-            '& .MuiSlider-track': { height: 4 }, '& .MuiSlider-rail': { height: 4, opacity: 0.3 },
-          }}
-        />
-        <Typography sx={{ color: 'text.secondary' }}>{formatTime(duration)}</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center',
+        width: '100%',
+        gap: 1, // Increased gap for better spacing
+        px: 1 // Add horizontal padding
+      }}>
+        <Typography sx={{ 
+          color: 'text.secondary',
+          minWidth: '32px', // Reduced fixed width
+          textAlign: 'right',
+          fontSize: '0.875rem'
+        }}>
+          {formatTime(currentTime)}
+        </Typography>
+
+        <Box sx={{ flex: 1 }}>
+          <Slider
+            value={sliderValue}
+            max={duration || 100}
+            onChange={handleSliderChange}
+            onChangeCommitted={handleSliderChangeCommitted}
+            sx={{ 
+              '& .MuiSlider-thumb': {
+                width: 12,
+                height: 12
+              }
+            }}
+          />
+        </Box>
+
+        <Typography sx={{ 
+          color: 'text.secondary',
+          minWidth: '32px', // Reduced fixed width
+          textAlign: 'left',
+          fontSize: '0.875rem'
+        }}>
+          {formatTime(duration)}
+        </Typography>
+
+        <Box sx={{ 
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '32px' // Match other elements width
+        }}>
+          <IconButton 
+            onClick={() => setIsVolumeOpen(!isVolumeOpen)}
+            size="small"
+            sx={{ p: 0.5 }} // Reduced padding further
+          >
+            {getVolumeIcon()}
+          </IconButton>
+          {isVolumeOpen && (
+            <Paper sx={{
+              position: 'absolute',
+              bottom: '-160px', // Position below the button
+              left: '50%',
+              transform: 'translateX(-50%)',
+              p: 1,
+              width: 40,
+              height: 150,
+              display: 'flex',
+              alignItems: 'center',
+              zIndex: 2,
+              boxShadow: 3
+            }}>
+              <Slider
+                orientation="vertical"
+                value={volume}
+                onChange={handleVolumeChange}
+                aria-label="Volume"
+                min={0}
+                max={100}
+                sx={{ height: '100%' }}
+              />
+            </Paper>
+          )}
+        </Box>
       </Box>
-      <PlaybackControls
-        isPlaying={isPlaying}
-        onPlayPause={handlePlayPause}
-        onNext={handleNextTrack}
-        onPrevious={handlePreviousTrack}
-        onSeek={seek}
-      />
-      <SpeedControls onSpeedChange={changePlaybackRate} />
+      <Box sx={{ width: '100%', mb: 1, overflow: 'auto' }}>
+        <PlaybackControls
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+          onNext={handleNextTrack}
+          onPrevious={handlePreviousTrack}
+          onSeek={seek}
+        />
+      </Box>
+
+      <Box sx={{ width: '100%', overflow: 'auto' }}>
+        <SpeedControls onSpeedChange={changePlaybackRate} />
+      </Box>
     </Paper>
   );
 
   const renderMainTitle = () => (
     <Box sx={{ width: '100%', mb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '40px' }}>
       <Typography
-        variant={isSmallScreen ? 'h6' : 'h5'}
+        variant="h6"
         align="center"
         sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.primary', lineHeight: '40px' }}
       >
@@ -787,38 +882,32 @@ const AudioPlayer: React.FC = () => {
             backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
             '&:hover': { backgroundColor: 'action.hover' },
             ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
-            height: '40px'
           }}
         >
-          <TableCell sx={{ display: 'flex', alignItems: 'center' }}>
-            {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+          <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              height: '100%' 
+            }}>
+              {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+            </Box>
           </TableCell>
-          {!isSmallScreen && (
-            <TableCell sx={{ textAlign: 'center' }}>
-              {index + 1}
-            </TableCell>
-          )}
-          <TableCell onClick={() => handleTrackSelection(index)} sx={cellStyles}>
-            {track.name}
+          <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
+          <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+            <span>{track.name}</span>
           </TableCell>
-          <TableCell sx={{ textAlign: 'center' }}>
-            {formatDuration(track.duration)}
-          </TableCell>
-          <TableCell>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-              <IconButton
-                size="small"
-                onClick={() => handleTrackSelection(index)}
-              >
+          <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
+          <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
+            <Box sx={actionButtonsSx}>
+              <IconButton size="small" onClick={() => handleTrackSelection(index)}>
                 {index === currentTrackIndex && isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
               </IconButton>
-              <IconButton 
-                size="small" 
-                onClick={() => removeFromQueue(track.id)}
-              >
+              <IconButton size="small" onClick={() => removeFromQueue(track.id)}>
                 <DeleteIcon />
               </IconButton>
-              <Box {...provided.dragHandleProps} sx={{ display: 'flex', cursor: 'grab' }}>
+              <Box {...provided.dragHandleProps} sx={{ display: 'flex', cursor: 'grab', ml: -0.5 }}>
                 <DragHandleIcon />
               </Box>
             </Box>
@@ -845,93 +934,175 @@ const AudioPlayer: React.FC = () => {
   );
 
   const tableStyles = {
-    "& .MuiTableCell-root": {
-      borderBottom: "1px solid",
-      borderColor: "divider",
-    },
-    "& .MuiTableRow-root:last-child .MuiTableCell-root": {
-      borderBottom: "none"
-    },
     width: "100%",
-    tableLayout: "fixed"
+    tableLayout: "fixed",
+    borderCollapse: 'separate',
+    borderSpacing: 0,
+    '& .MuiTableHead-root': {
+      '& .MuiTableCell-root': {
+        fontWeight: 'bold',
+        backgroundColor: 'background.paper',
+        height: '36px',
+      }
+    },
+    '& .MuiTableRow-root': {
+      height: '36px',
+      '&:hover': {
+        backgroundColor: 'action.hover',
+      }
+    },
+    '& .MuiTableCell-root': {
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+      padding: '0 4px',
+      height: '36px',
+      lineHeight: '36px',
+      fontSize: '0.875rem',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    // Column widths using percentages for consistent sizing
+    '& .MuiTableCell-root:nth-of-type(1)': { width: '8%' },  // Icon
+    '& .MuiTableCell-root:nth-of-type(2)': { width: '8%' },  // Number
+    '& .MuiTableCell-root:nth-of-type(3)': { width: '49%' }, // Name
+    '& .MuiTableCell-root:nth-of-type(4)': { width: '15%' }, // Duration
+    '& .MuiTableCell-root:nth-of-type(5)': { width: '20%' }, // Actions
+  };
+
+  const renderTableHeader = (isQueue: boolean) => (
+    <TableHead>
+      <TableRow>
+        <TableCell padding="none" align="center"></TableCell>
+        <TableCell padding="none" align="center">#</TableCell>
+        <TableCell padding="none" align="left">Name</TableCell>
+        <TableCell padding="none" align="center">Length</TableCell>
+        <TableCell padding="none" align="center">Actions</TableCell>
+      </TableRow>
+    </TableHead>
+  );
+
+  const commonTableSx = {
+    tableLayout: 'fixed' as const, // Fix TypeScript error
+    width: '100%',
+    '& .MuiTableCell-root': {
+      height: '36px',
+      padding: 0,  // Remove all padding
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+      fontSize: '0.875rem',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      verticalAlign: 'middle',
+      lineHeight: '36px',
+      '&:not(:nth-of-type(3))': {  // Apply to all cells except Name column (3rd)
+        textAlign: 'center',
+        justifyContent: 'center',
+        '& .MuiBox-root': {
+          justifyContent: 'center'
+        }
+      },
+      '&:nth-of-type(3)': {  // Name column
+        paddingLeft: '4px',  // Keep minimal padding for name only
+      },
+      // Single set of percentage-based widths for all screen sizes
+      '&:nth-of-type(1)': { width: '8%' },     // Icon
+      '&:nth-of-type(2)': { width: '8%' },     // Number
+      '&:nth-of-type(4)': { width: '15%' },    // Duration
+      '&:nth-of-type(5)': { width: '25%' },    // Actions
+    }
+  };
+
+  const actionButtonsSx = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center', // Changed from flex-end to center
+    gap: 0, // Removed gap between buttons
+    '& .MuiIconButton-root': {
+      padding: '2px', // Reduced padding around icons
+      margin: '0 -1px', // Negative margin to bring buttons closer
+    }
+  };
+
+  // Update table container styles
+  const tableContainerSx = {
+    height: '275px',
+    overflow: 'auto',
+    scrollbarWidth: 'thin' as const,
+    scrollbarColor: 'rgba(0,0,0,0.2) transparent',
+    '&::-webkit-scrollbar': {
+      width: '6px',
+      height: '6px',
+    },
+    '&::-webkit-scrollbar-track': {
+      background: 'transparent',
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: 'rgba(0,0,0,0.2)',
+      borderRadius: '3px',
+    }
   };
 
   const renderQueuePanel = () => (
-    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '405px' }}>
       {renderQueueHeader()}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <TableContainer sx={tableContainerStyles}>
-          <DragDropContext onDragEnd={(result) => {
-            if (!result.destination) return;
-            const newTracks = Array.from(queueTracks);
-            const [reorderedItem] = newTracks.splice(result.source.index, 1);
-            newTracks.splice(result.destination.index, 0, reorderedItem);
-            // Update queue
-            clearQueue();
-            newTracks.forEach(track => addToQueue(track));
-          }}>
-            <Droppable droppableId="queue">
-              {(provided) => (
-                <Table size="small" stickyHeader sx={tableStyles}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell width="10%" sx={{ p: { xs: 0.5, sm: 1 } }}></TableCell>
-                      {!isSmallScreen && <TableCell width="10%" sx={{ p: { xs: 0.5, sm: 1 } }}>#</TableCell>}
-                      <TableCell width="45%" sx={{ p: { xs: 0.5, sm: 1 } }}>Name</TableCell>
-                      <TableCell width="15%" sx={{ p: { xs: 0.5, sm: 1 } }}>Length</TableCell>
-                      <TableCell width="20%" align="center" sx={{ p: { xs: 0.5, sm: 1 } }}>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                    {queueTracks.map((track, index) => renderQueueTrackRow(track, index))}
-                    {provided.placeholder}
-                    {queueTracks.length < 5 && renderEmptyRows(5 - queueTracks.length)}
-                  </TableBody>
-                </Table>
-              )}
-            </Droppable>
-          </DragDropContext>
-        </TableContainer>
-        
-        {/* Modified Add Track Controls */}
-        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField
-              label="YouTube URL"
-              size="small"
-              value={queuePlaylistUrl}
-              onChange={(e) => setQueuePlaylistUrl(e.target.value)}
-              sx={{ flex: 1, ...textFieldStyles }}
-              InputProps={{
-                endAdornment: (
-                  <Button
-                    variant="contained"
-                    onClick={handleAddTrack}
-                    size="small"
-                    sx={addButtonStyles}
-                  >
-                    <YouTubeIcon sx={{ fontSize: '20px' }} />
-                  </Button>
-                ),
-              }}
+      <TableContainer sx={tableContainerSx}>        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="queue">
+            {(provided) => (
+              <Table size="small" stickyHeader sx={commonTableSx}>
+                {renderTableHeader(true)}
+                <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                  {queueTracks.map((track, index) => renderQueueTrackRow(track, index))}
+                  {provided.placeholder}
+                  {queueTracks.length < 5 && renderEmptyRows(5 - queueTracks.length)}
+                </TableBody>
+              </Table>
+            )}
+          </Droppable>
+        </DragDropContext>
+      </TableContainer>
+      <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
+        {/* URL input section */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField
+            label="YouTube URL"
+            size="small"
+            value={queuePlaylistUrl}
+            onChange={(e) => setQueuePlaylistUrl(e.target.value)}
+            sx={{ flex: 1, ...textFieldStyles }}
+            InputProps={{
+              endAdornment: (
+                <Button
+                  variant="contained"
+                  onClick={handleAddTrack}
+                  size="small"
+                  sx={addButtonStyles}
+                >
+                  <YouTubeIcon sx={{ fontSize: '20px' }} />
+                </Button>
+              ),
+            }}
+          />
+          <Button
+            variant="contained"
+            component="label"
+            startIcon={<InsertDriveFileIcon />}
+            color="secondary"
+          >
+            Add File
+            <input
+              type="file"
+              accept={SUPPORTED_FORMATS.join(',')}
+              onChange={addLocalTrackToPlaylist}
+              multiple
+              hidden
             />
-            <Button
-              variant="contained"
-              component="label"
-              startIcon={<InsertDriveFileIcon />}
-              color="secondary"
-            >
-              Add File
-              <input
-                type="file"
-                accept={SUPPORTED_FORMATS.join(',')}
-                onChange={addLocalTrackToPlaylist}
-                multiple
-                hidden
-              />
-            </Button>
-          </Box>
+          </Button>
         </Box>
+        
+        {/* Add playlist buttons here, same as playlist panel */}
+        {renderPlaylistButtons()}
       </Box>
     </Paper>
   );
@@ -945,19 +1116,26 @@ const AudioPlayer: React.FC = () => {
       }}
     >
       <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
-        {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          height: '100%' 
+        }}>
+          {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+        </Box>
       </TableCell>
-      {!isSmallScreen && <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{index + 1}</TableCell>}
-      <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{track.name}</TableCell>
+      <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
+      <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+        <span>{track.name}</span>
+      </TableCell>
       <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
-      <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 } }}>
-        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-          <IconButton size={isSmallScreen ? 'small' : 'medium'} onClick={() => handleAddTrackToQueue(track)} title="Add to queue">
+      <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
+        <Box sx={actionButtonsSx}>
+          <IconButton size="small" onClick={() => handleAddTrackToQueue(track)}>
             <QueueMusicIcon />
           </IconButton>
-          <IconButton
-            size={isSmallScreen ? 'small' : 'medium'}
-            onClick={() => {
+          <IconButton size="small" onClick={() => {
               const newName = prompt('Edit track name:', track.name);
               if (newName && newName !== track.name) updateTrack(track.id, { name: newName });
             }}
@@ -965,7 +1143,7 @@ const AudioPlayer: React.FC = () => {
           >
             <EditIcon />
           </IconButton>
-          <IconButton size={isSmallScreen ? 'small' : 'medium'} onClick={() => handleRemoveTrack(track.id)} title="Remove from playlist">
+          <IconButton size="small" onClick={() => handleRemoveTrack(track.id)}>
             <DeleteIcon />
           </IconButton>
         </Box>
@@ -1085,130 +1263,82 @@ const AudioPlayer: React.FC = () => {
   };
   
   const renderPlaylistPanel = () => (
-    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '405px' }}>
       {renderPlaylistHeader()}
-      {showPlaylistDropdown && (
-        <Box sx={{ 
-          mb: 2, 
-          border: 1, 
-          borderColor: 'divider', 
-          borderRadius: 1,
-          p: 1,
-          maxHeight: '30vh',
-          overflowY: 'auto'
-        }}>
-          {playlists.map((p) => (
-            <Box
-              key={p.id}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                p: 1,
-                cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.hover' },
-                ...(p.id === currentPlaylistId && {
-                  bgcolor: 'action.selected'
-                })
-              }}
-              onClick={() => {
-                setCurrentPlaylistId(p.id);
-                setShowPlaylistDropdown(false);
-              }}
-            >
-              <Typography>{p.name}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {p.tracks.length} tracks
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      )}
-      
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <TableContainer sx={tableContainerStyles}>
-          <Table size="small" stickyHeader sx={tableStyles}>
-            <TableHead>
-              <TableRow>
-                <TableCell width="10%" sx={{ p: { xs: 0.5, sm: 1 }, display: { xs: 'none', sm: 'table-cell' } }}></TableCell>
-                {!isSmallScreen && <TableCell width="10%" sx={{ p: { xs: 0.5, sm: 1 } }}>#</TableCell>}
-                <TableCell width="45%" sx={{ p: { xs: 0.5, sm: 1 } }}>Name</TableCell>
-                <TableCell width="15%" sx={{ p: { xs: 0.5, sm: 1 }, display: { xs: 'none', sm: 'table-cell' } }}>Length</TableCell>
-                <TableCell width="20%" align="center" sx={{ p: { xs: 0.5, sm: 1 } }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {getTracks().map((track, index) => renderPlaylistTrackRow(track, index))}
-              {getTracks().length < 4 && renderEmptyRows(4 - getTracks().length)}
-            </TableBody>
-          </Table>
-        </TableContainer>
+      <TableContainer sx={tableContainerSx}>
+        <Table size="small" stickyHeader sx={commonTableSx}>
+          {renderTableHeader(false)}
+          <TableBody>
+            {getTracks().map((track, index) => renderPlaylistTrackRow(track, index))}
+            {getTracks().length < 5 && renderEmptyRows(5 - getTracks().length)}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-        {/* Modified Add Track Controls */}
-        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <TextField
-              label="YouTube URL"
-              size="small"
-              value={playlistUrl}
-              onChange={(e) => setPlaylistUrl(e.target.value)}
-              sx={{ flex: 1, ...textFieldStyles }}
-              InputProps={{
-                endAdornment: (
-                  <Button
-                    variant="contained"
-                    onClick={handleAddTrack}
-                    sx={addButtonStyles}
-                  >
-                    <YouTubeIcon sx={{ fontSize: '20px' }} />
-                  </Button>
-                ),
-              }}
+      <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField
+            label="YouTube URL"
+            size="small"
+            value={playlistUrl}
+            onChange={(e) => setPlaylistUrl(e.target.value)}
+            sx={{ flex: 1, ...textFieldStyles }}
+            InputProps={{
+              endAdornment: (
+                <Button
+                  variant="contained"
+                  onClick={handleAddTrack}
+                  sx={addButtonStyles}
+                >
+                  <YouTubeIcon sx={{ fontSize: '20px' }} />
+                </Button>
+              ),
+            }}
+          />
+          <Button
+            variant="contained"
+            component="label"
+            startIcon={<InsertDriveFileIcon />}
+            color="secondary"
+          >
+            Add File
+            <input
+              type="file"
+              accept={SUPPORTED_FORMATS.join(',')}
+              onChange={addLocalTrackToPlaylist}
+              multiple
+              hidden
             />
-            <Button
-              variant="contained"
-              component="label"
-              startIcon={<InsertDriveFileIcon />}
-              color="secondary"
-            >
-              Add File
-              <input
-                type="file"
-                accept={SUPPORTED_FORMATS.join(',')}
-                onChange={addLocalTrackToPlaylist}
-                multiple
-                hidden
-              />
-            </Button>
-          </Box>
-          
-          {/* Playlist Actions */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              fullWidth
-              startIcon={<YouTubeIcon />}
-              onClick={() => setYoutubePlaylistDialog(true)}
-            >
-              Import Playlist
-            </Button>
-            <Button
-              variant="outlined"
-              fullWidth
-              startIcon={<PlaylistAddIcon />}
-              onClick={() => setNewPlaylistDialog(true)}
-            >
-              New Playlist
-            </Button>
-          </Box>
+          </Button>
         </Box>
+        
+        {renderPlaylistButtons()}
       </Box>
     </Paper>
   );
 
+  const renderPlaylistButtons = () => (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <Button
+        variant="outlined"
+        fullWidth
+        startIcon={<YouTubeIcon />}
+        onClick={() => setYoutubePlaylistDialog(true)}
+      >
+        Playlist
+      </Button>
+      <Button
+        variant="outlined"
+        fullWidth
+        onClick={() => setNewPlaylistDialog(true)}
+      >
+        New Playlist
+      </Button>
+    </Box>
+  );
+
   return (
     <Box sx={{ p: 2 }}>
-      {/* Audio/YouTube Players */}
       {youtubeVideoId ? renderYoutubePlayer() : (
         <audio
           ref={audioRef}
@@ -1219,24 +1349,24 @@ const AudioPlayer: React.FC = () => {
         />
       )}
   
-      {/* Main content - Player controls */}
       {renderMainContent()}
   
-      {/* Lists Container */}
       <Box sx={{ 
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-        gap: 2
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' }, // Stack on mobile, row on desktop
+        gap: 2,
+        '& > *': {
+          flex: { xs: '1 1 100%', md: '1 1 50%' } // Full width on mobile, half on desktop
+        }
       }}>
         {renderQueuePanel()}
         {renderPlaylistPanel()}
       </Box>
   
-      {/* Dialogs */}
       {renderNewPlaylistDialog()}
       {renderYoutubePlaylistDialog()}
     </Box>
   );
 };
-  
+
 export default AudioPlayer;
