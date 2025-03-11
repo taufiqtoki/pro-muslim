@@ -44,6 +44,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import { localFileService } from '../services/localFileService.ts';
+import { useDragAndDrop } from '../hooks/useDragAndDrop.ts';
 
 const SUPPORTED_FORMATS = [
   'audio/*', 'video/mp4', 'video/webm', 'video/ogg', 'video/x-matroska', 'video/quicktime',
@@ -86,6 +87,8 @@ const AudioPlayer: React.FC = () => {
   const [previousVolume, setPreviousVolume] = useState(100);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const [volumeTimeout, setVolumeTimeout] = useState<NodeJS.Timeout | null>(null);
+  const queueDragDrop = useDragAndDrop();
+  const playlistDragDrop = useDragAndDrop();
 
   const youtubeOpts = {
     height: '1',
@@ -1148,8 +1151,99 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
+  const handleQueueDrop = async (url: string) => {
+    try {
+      const videoId = validateYouTubeUrl(url);
+      if (!videoId) {
+        showToast('Invalid YouTube URL', 'error');
+        return;
+      }
+      const trackData = await getVideoDetails(videoId);
+      if (trackData) {
+        const newTrack: Track = {
+          id: Date.now().toString(),
+          url: url,
+          name: trackData.name,
+          duration: trackData.duration,
+          thumbnail: trackData.thumbnail,
+          addedAt: Date.now(),
+          type: 'youtube',
+          videoId: videoId
+        };
+        await addToQueue(newTrack);
+        showToast('Track added to queue', 'success');
+      }
+    } catch (error) {
+      console.error('Error processing dropped URL:', error);
+      showToast('Error adding URL to queue', 'error');
+    }
+  };
+
+  const handlePlaylistDrop = async (url: string) => {
+    try {
+      const videoId = validateYouTubeUrl(url);
+      if (!videoId) {
+        showToast('Invalid YouTube URL', 'error');
+        return;
+      }
+      const trackData = await getVideoDetails(videoId);
+      if (trackData) {
+        const newTrack: Track = {
+          id: Date.now().toString(),
+          url: url,
+          name: trackData.name,
+          duration: trackData.duration,
+          thumbnail: trackData.thumbnail,
+          addedAt: Date.now(),
+          type: 'youtube',
+          videoId: videoId
+        };
+        await addTrack(newTrack);
+        showToast('Track added to playlist', 'success');
+      }
+    } catch (error) {
+      console.error('Error processing dropped URL:', error);
+      showToast('Error adding URL to playlist', 'error');
+    }
+  };
+
   const renderQueuePanel = () => (
-    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '405px' }}>
+    <Paper 
+      elevation={3} 
+      sx={{ 
+        p: 2, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '405px',
+        position: 'relative',
+        ...(queueDragDrop.isDragging && {
+          '&::after': {
+            content: '"Drop YouTube URL or files here"',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: 'primary.main',
+            fontWeight: 'bold',
+            zIndex: 2,
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            padding: '1rem',
+            borderRadius: '4px',
+          }
+        })
+      }}
+      onDragOver={queueDragDrop.handleDragOver}
+      onDragLeave={queueDragDrop.handleDragLeave}
+      onDrop={(e) => queueDragDrop.handleDrop(
+        e,
+        (files) => {
+          const event = { target: { files, dataset: { target: 'queue' } } } as any;
+          addLocalTrackToPlaylist(event);
+        },
+        handleQueueDrop
+      )}
+    >
       {renderQueueHeader()}
       <TableContainer sx={tableContainerSx}>
         <DragDropContext onDragEnd={onDragEnd}>
@@ -1392,7 +1486,42 @@ const AudioPlayer: React.FC = () => {
   };
   
   const renderPlaylistPanel = () => (
-    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '405px' }}>
+    <Paper 
+      elevation={3} 
+      sx={{ 
+        p: 2, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '405px',
+        position: 'relative',
+        ...(playlistDragDrop.isDragging && {
+          '&::after': {
+            content: '"Drop YouTube URL or files here"',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: 'primary.main',
+            fontWeight: 'bold',
+            zIndex: 2,
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            padding: '1rem',
+            borderRadius: '4px',
+          }
+        })
+      }}
+      onDragOver={playlistDragDrop.handleDragOver}
+      onDragLeave={playlistDragDrop.handleDragLeave}
+      onDrop={(e) => playlistDragDrop.handleDrop(
+        e,
+        (files) => {
+          const event = { target: { files } } as any;
+          addLocalTrackToPlaylist(event);
+        },
+        handlePlaylistDrop
+      )}
+    >
       {renderPlaylistHeader()}
       <TableContainer sx={tableContainerSx}>
         <Table size="small" stickyHeader sx={commonTableSx}>
