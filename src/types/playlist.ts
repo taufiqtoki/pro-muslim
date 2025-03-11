@@ -11,6 +11,18 @@ export interface Track {
     size: number;
     mimeType?: string; // Add this field
   };
+  localFileData?: {
+    name: string;
+    size: number;
+    type: string;
+    lastModified: number;
+  };
+  fileData?: {
+    name: string;
+    size: number;
+    type: string;
+    lastModified: number;
+  };
 }
 
 export interface Playlist {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth.ts';
 import { playlistService } from '../services/playlistService.ts';
 import { Track, Playlist } from '../types/playlist.ts';
@@ -148,48 +148,16 @@ export const usePlaylist = (playlistId?: string) => {
     });
   };
 
-  const addTrack = async (track: Track) => {
-    if (!playlist) {
-      const newPlaylist: Playlist = {
-        id: playlistId || 'default',
-        name: 'Default Playlist',
-        tracks: [track],
-        isPublic: false,
-        type: 'custom',
-        createdAt: Date.now(),
+  const addTrack = useCallback(async (track: Track) => {
+    setPlaylist(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        tracks: [...prev.tracks, track],
         updatedAt: Date.now()
       };
-      localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(newPlaylist));
-      setPlaylist(newPlaylist);
-      return;
-    }
-
-    // Check for duplicates
-    if (checkDuplicate(track, playlist.tracks)) {
-      throw new Error('This track already exists in the playlist');
-      return;
-    }
-
-    const updatedPlaylist = {
-      ...playlist,
-      tracks: [...playlist.tracks, track],
-      updatedAt: Date.now()
-    };
-
-    if (!user) {
-      localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
-      setPlaylist(updatedPlaylist);
-      return;
-    }
-
-    try {
-      await playlistService.addTrackToPlaylist(user.uid, playlistId || 'default', track);
-      setPlaylist(updatedPlaylist);
-    } catch (error) {
-      console.error('Error adding track:', error);
-      throw error;
-    }
-  };
+    });
+  }, []);
 
   const createPlaylist = async (playlist: Omit<Playlist, 'id'>) => {
     if (!user) {

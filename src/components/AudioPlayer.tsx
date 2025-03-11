@@ -43,6 +43,7 @@ import VolumeMuteIcon from '@mui/icons-material/VolumeMute';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
+import { localFileService } from '../services/localFileService.ts';
 
 const SUPPORTED_FORMATS = [
   'audio/*', 'video/mp4', 'video/webm', 'video/ogg', 'video/x-matroska', 'video/quicktime',
@@ -190,14 +191,15 @@ const AudioPlayer: React.FC = () => {
           type: 'youtube'
         };
 
+        // Strictly separate queue and playlist additions
         if (queuePlaylistUrl) {
           await addToQueue(newTrack);
           setQueuePlaylistUrl('');
-        } else {
+        } else if (playlistUrl) {
           await addTrack(newTrack);
           setPlaylistUrl('');
         }
-        setNewTrackUrl('');
+        
         showToast('Track added successfully', 'success');
       }
     } catch (error: any) {
@@ -258,10 +260,25 @@ const AudioPlayer: React.FC = () => {
         } else {
           await handlePlayTrack(currentTrack);
         }
-      } else {
+      } else if (currentTrack.type === 'local') {
+        // Get file before playing
+        const file = await localFileService.getFile(currentTrack.id);
+        if (!file) {
+          showToast('Error: File not found', 'error');
+          return;
+        }
+        
         if (audioRef.current) {
-          if (isPlaying) audioRef.current.pause();
-          else await audioRef.current.play();
+          if (isPlaying) {
+            audioRef.current.pause();
+          } else {
+            const objectUrl = URL.createObjectURL(file);
+            audioRef.current.src = objectUrl;
+            audioRef.current.onloadeddata = () => {
+              URL.revokeObjectURL(objectUrl);
+            };
+            await audioRef.current.play();
+          }
           setIsPlaying(!isPlaying);
         }
       }
@@ -421,82 +438,61 @@ const AudioPlayer: React.FC = () => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
     
-    try {
-      const successfulTracks: Track[] = [];
-      const failedTracks: string[] = [];
-
-      for (const file of files) {
-        try {
-          const metadata = await getAudioMetadata(file);
-          let fileUrl: string;
-          
-          if (file.type.startsWith('video/')) {
-            fileUrl = await extractAudioFromVideo(file);
-          } else {
-            fileUrl = URL.createObjectURL(file);
+    for (const file of files) {
+      try {
+        const metadata = await getAudioMetadata(file);
+        const fileId = await localFileService.saveFile(file);
+        
+        const newTrack: Track = {
+          id: fileId,
+          url: fileId, // Store ID instead of blob URL
+          name: metadata.name || file.name,
+          duration: metadata.duration,
+          thumbnail: '',
+          addedAt: Date.now(),
+          type: 'local',
+          metadata: {
+            lastModified: file.lastModified,
+            size: file.size,
+            mimeType: file.type
           }
+        };
 
-          const newTrack: Track = {
-            id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            url: fileUrl,
-            name: metadata.name || file.name,
-            duration: metadata.duration,
-            thumbnail: '',
-            addedAt: Date.now(),
-            type: 'local' as const,
-            metadata: {
-              lastModified: metadata.lastModified,
-              size: metadata.size,
-              mimeType: file.type
-            }
-          };
-
-          await addTrack(newTrack).catch(() => {
-            failedTracks.push(file.name);
-            if (fileUrl) URL.revokeObjectURL(fileUrl);
-          });
-
-          if (!failedTracks.includes(file.name)) {
-            successfulTracks.push(newTrack);
-          }
-        } catch (error) {
-          failedTracks.push(file.name);
+        const isQueue = event.target.dataset.target === 'queue';
+        if (isQueue) {
+          await addToQueue(newTrack);
+        } else {
+          await addTrack(newTrack);
         }
+      } catch (error) {
+        console.error('Error adding track:', error);
+        showToast('Error adding track', 'error');
       }
-
-      if (successfulTracks.length > 0) {
-        showToast(`Added ${successfulTracks.length} track(s) successfully`, 'success');
-      }
-      
-      if (failedTracks.length > 0) {
-        showToast(`${failedTracks.length} track(s) were skipped (already exist or invalid)`, 'info');
-      }
-    } catch (error) {
-      showToast('Error adding tracks', 'error');
     }
   };
 
   const handlePlayTrack = async (track: Track) => {
     try {
-      if (track.type === 'youtube') {
-        const videoId = validateYouTubeUrl(track.url);
-        if (videoId) {
-          setYoutubeVideoId(videoId);
-          setDuration(track.duration);
-          if (audioRef.current) audioRef.current.src = '';
-          if (youtubeRef.current?.internalPlayer) {
-            await youtubeRef.current.internalPlayer.loadVideoById({ videoId, startSeconds: 0, suggestedQuality: 'tiny' });
-            youtubeRef.current.internalPlayer.setPlaybackQuality('tiny');
-            setIsPlaying(true);
-          }
+      if (track.type === 'local') {
+        const file = await localFileService.getFile(track.id);
+        if (!file) {
+          showToast('Error: File not found', 'error');
+          return;
         }
-      } else if (track.type === 'local') {
-        setYoutubeVideoId(undefined);
+        
+        const objectUrl = URL.createObjectURL(file);
         if (audioRef.current) {
-          audioRef.current.src = track.url;
+          audioRef.current.src = objectUrl;
           await audioRef.current.play();
           setIsPlaying(true);
+          
+          // Cleanup object URL after it's loaded
+          audioRef.current.onloadeddata = () => {
+            URL.revokeObjectURL(objectUrl);
+          };
         }
+      } else {
+        // ...existing YouTube handling code...
       }
     } catch (error) {
       console.error('Error playing track:', error);
@@ -506,8 +502,10 @@ const AudioPlayer: React.FC = () => {
 
   const handleRemoveTrack = async (trackId: string) => {
     try {
-      const track = playlist?.tracks.find(t => t.id === trackId);
-      if (track?.type === 'local') URL.revokeObjectURL(track.url);
+      const track = playlist?.tracks?.find(t => t.id === trackId);
+      if (track?.type === 'local' && track.url) {
+        await localFileService.deleteFile(track.url);
+      }
       if (favorites.includes(trackId)) {
         const newFavorites = favorites.filter(id => id !== trackId);
         setFavorites(newFavorites);
@@ -718,8 +716,18 @@ const AudioPlayer: React.FC = () => {
   const QUEUE_EMPTY_ROWS = 5;    // Changed from 6 to 5
   const PLAYLIST_EMPTY_ROWS = 4; // Changed from 5 to 4
 
-  const getTracks = () => queueTracks;
-  const getCurrentTrack = () => getTracks()[currentTrackIndex] || null;
+  const getTracks = () => {
+    // Ensure we always return an array
+    if (playlist?.tracks?.length) {
+      return playlist.tracks;
+    }
+    return queueTracks || [];
+  };
+
+  const getCurrentTrack = () => {
+    const tracks = getTracks();
+    return tracks.length > 0 ? tracks[currentTrackIndex] : null;
+  };
 
   const handleVolumeChange = (event: Event, newValue: number | number[]) => {
     const value = Array.isArray(newValue) ? newValue[0] : newValue;
@@ -1157,6 +1165,7 @@ const AudioPlayer: React.FC = () => {
               onChange={addLocalTrackToPlaylist}
               multiple
               hidden
+              data-target="queue"  // Added this attribute
             />
           </Button>
         </Box>
@@ -1182,49 +1191,53 @@ const AudioPlayer: React.FC = () => {
     </Paper>
   );
 
-  const renderPlaylistTrackRow = (track: Track, index: number) => (
-    <TableRow
-      key={track.id}
-      sx={{
-        backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit', '&:hover': { backgroundColor: 'action.hover' },
-        ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
-      }}
-    >
-      <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          height: '100%' 
-        }}>
-          {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
-        </Box>
-      </TableCell>
-      <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
-      <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
-        <span>{track.name}</span>
-      </TableCell>
-      <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
-      <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
-        <Box sx={actionButtonsSx}>
-          <IconButton size="small" onClick={() => handleAddTrackToQueue(track)}>
-            <QueueMusicIcon />
-          </IconButton>
-          <IconButton size="small" onClick={() => {
-              const newName = prompt('Edit track name:', track.name);
-              if (newName && newName !== track.name) updateTrack(track.id, { name: newName });
-            }}
-            title="Edit name"
-          >
-            <EditIcon />
-          </IconButton>
-          <IconButton size="small" onClick={() => handleRemoveTrack(track.id)}>
-            <DeleteIcon />
-          </IconButton>
-        </Box>
-      </TableCell>
-    </TableRow>
-  );
+  const renderPlaylistTrackRow = (track: Track, index: number) => {
+    if (!track) return null;
+    return (
+      <TableRow
+        key={track.id}
+        sx={{
+          backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
+          '&:hover': { backgroundColor: 'action.hover' },
+          ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
+        }}
+      >
+        <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            height: '100%' 
+          }}>
+            {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+          </Box>
+        </TableCell>
+        <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
+        <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+          <span>{track.name}</span>
+        </TableCell>
+        <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
+        <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
+          <Box sx={actionButtonsSx}>
+            <IconButton size="small" onClick={() => handleAddTrackToQueue(track)}>
+              <QueueMusicIcon />
+            </IconButton>
+            <IconButton size="small" onClick={() => {
+                const newName = prompt('Edit track name:', track.name);
+                if (newName && newName !== track.name) updateTrack(track.id, { name: newName });
+              }}
+              title="Edit name"
+            >
+              <EditIcon />
+            </IconButton>
+            <IconButton size="small" onClick={() => handleRemoveTrack(track.id)}>
+              <DeleteIcon />
+            </IconButton>
+          </Box>
+        </TableCell>
+      </TableRow>
+    );
+  };
 
   const renderPlaylistHeader = () => (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -1349,8 +1362,8 @@ const AudioPlayer: React.FC = () => {
         <Table size="small" stickyHeader sx={commonTableSx}>
           {renderTableHeader(false)}
           <TableBody>
-            {getTracks().map((track, index) => renderPlaylistTrackRow(track, index))}
-            {getTracks().length < 5 && renderEmptyRows(5 - getTracks().length)}
+            {playlist?.tracks?.map((track, index) => renderPlaylistTrackRow(track, index))}
+            {(playlist?.tracks?.length || 0) < 5 && renderEmptyRows(5 - (playlist?.tracks?.length || 0))}
           </TableBody>
         </Table>
       </TableContainer>
