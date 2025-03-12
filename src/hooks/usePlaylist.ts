@@ -1,78 +1,63 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from './useAuth.ts';
+import { useAuth } from '../contexts/AuthContext.tsx';
 import { playlistService } from '../services/playlistService.ts';
 import { Track, Playlist } from '../types/playlist.ts';
+import { db } from '../firebase.ts';
+import { doc, getDoc } from 'firebase/firestore';
 
-export const usePlaylist = (playlistId?: string) => {
+export const usePlaylist = (playlistId: string) => {
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  const loadPlaylist = async () => {
-    if (playlistId === 'favorites') {
-      // Load favorites playlist
-      try {
-        const localFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        const allTracks = localStorage.getItem('playlist_default');
-        const defaultPlaylist = allTracks ? JSON.parse(allTracks) : null;
-        
-        // Get all tracks that are in favorites
-        const favoriteTracks = defaultPlaylist?.tracks.filter(track => 
-          localFavorites.includes(track.id)
-        ) || [];
-
-        setPlaylist({
-          id: 'favorites',
-          name: 'Favorites',
-          description: 'Your favorite tracks',
-          tracks: favoriteTracks,
-          isPublic: false,
-          type: 'system',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        });
-        setLoading(false);
-        return;
-      } catch (err) {
-        setError('Error loading favorites');
-        setLoading(false);
-        return;
-      }
-    }
-
-    if (!user) {
-      // Load from localStorage if no user
-      const localData = localStorage.getItem(`playlist_${playlistId}`);
-      if (localData) {
-        setPlaylist(JSON.parse(localData));
-      } else {
-        // Create default playlist structure
-        const defaultPlaylist: Playlist = {
-          id: playlistId || 'queue',
-          name: 'Queue',
-          description: 'Current queue tracks',
-          tracks: [],
-          isPublic: false,
-          type: 'queue',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-        setPlaylist(defaultPlaylist);
-        localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(defaultPlaylist));
-      }
+  const loadPlaylist = useCallback(async () => {
+    if (!user || !playlistId) {
       setLoading(false);
       return;
     }
+
     try {
-      const data = await playlistService.getPlaylist(user.uid, playlistId || 'default');
-      setPlaylist(data);
-    } catch (err: any) {
-      setError(err.message);
+      setLoading(true);
+      setError(null);
+
+      // Special handling for favorites playlist
+      if (playlistId === 'favorites') {
+        const userRef = doc(db, `users/${user.uid}`);
+        const userDoc = await getDoc(userRef);
+        const favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
+        
+        if (userDoc.exists() && favoritesPlaylist) {
+          const userData = userDoc.data();
+          const favoriteIds = userData.favorites || [];
+          
+          // Get all playlists to find favorite tracks
+          const allPlaylists = await playlistService.getUserPlaylists(user.uid);
+          const allTracks = Array.from(new Set(allPlaylists.flatMap(p => p.tracks)));
+          const favoriteTracks = allTracks.filter(track => favoriteIds.includes(track.id));
+          
+          // Update favorites playlist with unique tracks
+          const updatedPlaylist = {
+            ...favoritesPlaylist,
+            tracks: favoriteTracks,
+            updatedAt: Date.now()
+          };
+          
+          await playlistService.updatePlaylist(user.uid, 'favorites', updatedPlaylist);
+          setPlaylist(updatedPlaylist);
+        }
+      } else {
+        // Normal playlist handling
+        const loadedPlaylist = await playlistService.getPlaylist(user.uid, playlistId);
+        setPlaylist(loadedPlaylist);
+      }
+    } catch (err) {
+      console.error('Error loading playlist:', err);
+      setError('Error loading playlist');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, playlistId]);
 
   const refreshPlaylist = () => {
     loadPlaylist();

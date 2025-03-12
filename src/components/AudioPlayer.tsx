@@ -252,7 +252,7 @@ const AudioPlayer: React.FC = () => {
 
   const toggleFavorite = async (trackId: string) => {
     try {
-      // Find the track by ID - check both queue and current playlist
+      // Find the track from either queue or current playlist
       const track = [...queueTracks, ...(playlist?.tracks || [])].find(t => t.id === trackId);
       if (!track) {
         showToast('Track not found', 'error');
@@ -270,34 +270,13 @@ const AudioPlayer: React.FC = () => {
         // Update favorites in user document
         await playlistService.toggleFavorite(user.uid, trackId, !isFavorite);
         
-        // Get favorites playlist
-        const favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
-        
-        if (favoritesPlaylist) {
-          if (!isFavorite) {
-            // Add track to favorites playlist
-            await playlistService.updatePlaylist(user.uid, 'favorites', {
-              ...favoritesPlaylist,
-              tracks: [...favoritesPlaylist.tracks, track],
-              updatedAt: Date.now()
-            });
-          } else {
-            // Remove track from favorites playlist
-            await playlistService.updatePlaylist(user.uid, 'favorites', {
-              ...favoritesPlaylist,
-              tracks: favoritesPlaylist.tracks.filter(t => t.id !== trackId),
-              updatedAt: Date.now()
-            });
-          }
+        // No need to manually modify favorites playlist - it will be updated through usePlaylist hook
+        if (currentPlaylistId === 'favorites') {
+          await refreshPlaylist();
         }
       }
 
       showToast(isFavorite ? 'Removed from favorites' : 'Added to favorites', 'success');
-      
-      // Refresh the favorites playlist if we're currently viewing it
-      if (currentPlaylistId === 'favorites') {
-        refreshPlaylist();
-      }
     } catch (error) {
       console.error('Error toggling favorite:', error);
       showToast('Error updating favorites', 'error');
@@ -1764,18 +1743,20 @@ const AudioPlayer: React.FC = () => {
       >
         <FavoriteIcon sx={{ mr: 1 }} /> Favorites
       </MenuItem>
-      {playlists.map((playlist) => (
-        <MenuItem
-          key={playlist.id}
-          onClick={() => {
-            setCurrentPlaylistId(playlist.id);
-            setPlaylistMenu(null);
-          }}
-          selected={currentPlaylistId === playlist.id}
-        >
-          {playlist.name}
-        </MenuItem>
-      ))}
+      {playlists
+        .filter(playlist => playlist.id !== 'favorites') // Filter out favorites from regular playlists
+        .map((playlist) => (
+          <MenuItem
+            key={playlist.id}
+            onClick={() => {
+              setCurrentPlaylistId(playlist.id);
+              setPlaylistMenu(null);
+            }}
+            selected={currentPlaylistId === playlist.id}
+          >
+            {playlist.name}
+          </MenuItem>
+        ))}
     </Menu>
   );
 
@@ -1879,10 +1860,11 @@ const AudioPlayer: React.FC = () => {
     if (!user) return;
     
     try {
-      const favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
+      let favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
       
       if (!favoritesPlaylist) {
-        await playlistService.createPlaylist(user.uid, {
+        // Create new favorites playlist if it doesn't exist
+        const favoritesId = await playlistService.createPlaylist(user.uid, {
           name: 'Favorites',
           description: 'Your favorite tracks',
           tracks: [],
@@ -1891,6 +1873,17 @@ const AudioPlayer: React.FC = () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
+        
+        favoritesPlaylist = await playlistService.getPlaylist(user.uid, favoritesId);
+      }
+
+      // Load favorites from user document
+      const userRef = doc(db, `users/${user.uid}`);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setFavorites(userData.favorites || []);
       }
     } catch (error) {
       console.error('Error initializing favorites playlist:', error);
