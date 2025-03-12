@@ -25,9 +25,10 @@ export const usePlaylist = (playlistId?: string) => {
         setPlaylist({
           id: 'favorites',
           name: 'Favorites',
+          description: 'Your favorite tracks',
           tracks: favoriteTracks,
           isPublic: false,
-          type: 'favorites', // Add this line
+          type: 'system',
           createdAt: Date.now(),
           updatedAt: Date.now()
         });
@@ -50,6 +51,7 @@ export const usePlaylist = (playlistId?: string) => {
         const defaultPlaylist: Playlist = {
           id: playlistId || 'queue',
           name: 'Queue',
+          description: 'Current queue tracks',
           tracks: [],
           isPublic: false,
           type: 'queue',

@@ -45,6 +45,27 @@ import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import { localFileService } from '../services/localFileService.ts';
 import { useDragAndDrop } from '../hooks/useDragAndDrop.ts';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+
+const FavoriteIconComponent: React.FC<{ 
+  isFavorite: boolean;
+  onClick: () => void;
+}> = ({ isFavorite, onClick }) => (
+  <IconButton 
+    size="small" 
+    onClick={onClick}
+    sx={{
+      '&:hover': {
+        color: '#ff69b4', // Pink color on hover
+      },
+      ...(isFavorite && {
+        color: '#ff1493', // Deeper pink when favorited
+      })
+    }}
+  >
+    {isFavorite ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+  </IconButton>
+);
 
 const SUPPORTED_FORMATS = [
   'audio/*', 'video/mp4', 'video/webm', 'video/ogg', 'video/x-matroska', 'video/quicktime',
@@ -89,6 +110,7 @@ const AudioPlayer: React.FC = () => {
   const [volumeTimeout, setVolumeTimeout] = useState<NodeJS.Timeout | null>(null);
   const queueDragDrop = useDragAndDrop();
   const playlistDragDrop = useDragAndDrop();
+  const [playlistMenu, setPlaylistMenu] = useState<null | HTMLElement>(null);
 
   const youtubeOpts = {
     height: '1',
@@ -166,17 +188,8 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  const handleAddTrackToQueue = async (track: Track) => {
-    try {
-      await addToQueue(track);
-      showToast('Added to queue', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Error adding to queue', 'error');
-    }
-  };
-
-  const handleAddTrack = async () => {
-    const urlToAdd = queuePlaylistUrl || playlistUrl || newTrackUrl;
+  const handleAddTrack = async (target: 'queue' | 'playlist') => {
+    const urlToAdd = target === 'queue' ? queuePlaylistUrl : playlistUrl;
     if (!urlToAdd) return;
     
     try {
@@ -199,10 +212,10 @@ const AudioPlayer: React.FC = () => {
         };
 
         // Strictly separate queue and playlist additions
-        if (queuePlaylistUrl) {
+        if (target === 'queue') {
           await addToQueue(newTrack);
           setQueuePlaylistUrl('');
-        } else if (playlistUrl) {
+        } else if (target === 'playlist') {
           await addTrack(newTrack);
           setPlaylistUrl('');
         }
@@ -239,16 +252,52 @@ const AudioPlayer: React.FC = () => {
 
   const toggleFavorite = async (trackId: string) => {
     try {
+      // Find the track by ID - check both queue and current playlist
+      const track = [...queueTracks, ...(playlist?.tracks || [])].find(t => t.id === trackId);
+      if (!track) {
+        showToast('Track not found', 'error');
+        return;
+      }
+
       const isFavorite = favorites.includes(trackId);
       const newFavorites = isFavorite ? favorites.filter(id => id !== trackId) : [...favorites, trackId];
+      
+      // Update favorites array in state and localStorage
       setFavorites(newFavorites);
       localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      
       if (user) {
+        // Update favorites in user document
         await playlistService.toggleFavorite(user.uid, trackId, !isFavorite);
+        
+        // Get favorites playlist
+        const favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
+        
+        if (favoritesPlaylist) {
+          if (!isFavorite) {
+            // Add track to favorites playlist
+            await playlistService.updatePlaylist(user.uid, 'favorites', {
+              ...favoritesPlaylist,
+              tracks: [...favoritesPlaylist.tracks, track],
+              updatedAt: Date.now()
+            });
+          } else {
+            // Remove track from favorites playlist
+            await playlistService.updatePlaylist(user.uid, 'favorites', {
+              ...favoritesPlaylist,
+              tracks: favoritesPlaylist.tracks.filter(t => t.id !== trackId),
+              updatedAt: Date.now()
+            });
+          }
+        }
       }
+
       showToast(isFavorite ? 'Removed from favorites' : 'Added to favorites', 'success');
-      if (currentPlaylistId === 'favorites' && isFavorite) await removeTrack(trackId);
-      if (currentPlaylistId === 'favorites') refreshPlaylist();
+      
+      // Refresh the favorites playlist if we're currently viewing it
+      if (currentPlaylistId === 'favorites') {
+        refreshPlaylist();
+      }
     } catch (error) {
       console.error('Error toggling favorite:', error);
       showToast('Error updating favorites', 'error');
@@ -359,7 +408,15 @@ const AudioPlayer: React.FC = () => {
   const handleNextTrack = () => {
     const tracks = getTracks();
     if (tracks.length === 0) return;
+    
     const nextIndex = (currentTrackIndex + 1) % tracks.length;
+    
+    // If we've reached the end of the queue, stop playing
+    if (nextIndex === 0) {
+      setIsPlaying(false);
+      return;
+    }
+    
     setCurrentTrackIndex(nextIndex);
     setCurrentTime(0);
     setIsPlaying(false);
@@ -489,10 +546,8 @@ const AudioPlayer: React.FC = () => {
 
   const handlePlayTrack = async (track: Track) => {
     try {
-      // Update media session metadata when track changes
       updateMediaSessionMetadata(track);
       
-      // Reset YouTube if switching from YouTube to local file
       if (youtubeVideoId && track.type === 'local') {
         if (youtubeRef.current?.internalPlayer) {
           await youtubeRef.current.internalPlayer.stopVideo();
@@ -501,25 +556,17 @@ const AudioPlayer: React.FC = () => {
       }
 
       if (track.type === 'youtube') {
-        // Extract video ID from URL
         const videoId = validateYouTubeUrl(track.url);
-        if (!videoId) {
-          showToast('Invalid YouTube URL', 'error');
-          return;
-        }
-        setYoutubeVideoId(videoId);
+        if (!videoId) throw new Error('Invalid YouTube URL');
         
-        // Wait for player to be ready
+        setYoutubeVideoId(videoId);
         if (youtubeRef.current?.internalPlayer) {
           await youtubeRef.current.internalPlayer.loadVideoById(videoId);
           setIsPlaying(true);
         }
       } else if (track.type === 'local') {
         const file = await localFileService.getFile(track.id);
-        if (!file) {
-          showToast('Error: File not found', 'error');
-          return;
-        }
+        if (!file) throw new Error('File not found');
         
         const objectUrl = URL.createObjectURL(file);
         if (audioRef.current) {
@@ -527,15 +574,14 @@ const AudioPlayer: React.FC = () => {
           await audioRef.current.play();
           setIsPlaying(true);
           
-          // Cleanup object URL after it's loaded
           audioRef.current.onloadeddata = () => {
             URL.revokeObjectURL(objectUrl);
           };
         }
       }
     } catch (error) {
-      console.error('Error playing track:', error);
-      showToast('Error playing track', 'error');
+      showToast(error.message || 'Error playing track', 'error');
+      throw error; // Re-throw to handle in calling function
     }
   };
 
@@ -654,25 +700,47 @@ const AudioPlayer: React.FC = () => {
   const handleImportYoutubePlaylist = async () => {
     try {
       setImportLoading(true);
-      const playlistId = extractYoutubePlaylistId(newPlaylistData.youtubeUrl);
+      
+      // Fix: Only use the correct URL based on which button was clicked
+      const url = queuePlaylistUrl || newPlaylistData.youtubeUrl;
+      const isQueueImport = Boolean(queuePlaylistUrl);
+      
+      const playlistId = extractYoutubePlaylistId(url);
       if (!playlistId) {
         showToast('Invalid YouTube playlist URL', 'error');
         return;
       }
-      if (user) {
-        const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
-        setImportProgress({ current: 0, total: details.itemCount });
-        const newPlaylistId = await playlistService.importYouTubePlaylist(
-          user.uid, playlistId, undefined, (current) => setImportProgress(prev => ({ ...prev, current }))
-        );
-        showToast(`YouTube playlist "${details.title}" imported successfully`, 'success');
-        setYoutubePlaylistDialog(false);
-        setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' }));
-        await loadPlaylists();
-        setCurrentPlaylistId(newPlaylistId);
-        refreshPlaylist();
+
+      const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
+      setImportProgress({ current: 0, total: details.itemCount });
+      const tracks = await playlistService.fetchYouTubePlaylistTracks(playlistId);
+
+      // Fix: Ensure tracks are added to queue when initiated from queue panel
+      if (isQueueImport) {
+        for (const track of tracks) {
+          await addToQueue(track);
+          setImportProgress(prev => ({ ...prev, current: prev.current + 1 }));
+        }
+        setQueuePlaylistUrl(''); // Clear queue URL
+        showToast('Playlist imported to queue successfully', 'success');
+      } else {
+        // Import as new playlist only if not from queue
+        if (user) {
+          const newPlaylistId = await playlistService.importYouTubePlaylist(
+            user.uid,
+            playlistId,
+            undefined,
+            (current) => setImportProgress(prev => ({ ...prev, current }))
+          );
+          await loadPlaylists();
+          setCurrentPlaylistId(newPlaylistId);
+          setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' })); // Clear playlist URL
+          showToast(`Playlist "${details.title}" imported successfully`, 'success');
+        }
       }
-    } catch (error: any) {
+
+      setYoutubePlaylistDialog(false);
+    } catch (error) {
       showToast(error.message || 'Error importing playlist', 'error');
     } finally {
       setImportLoading(false);
@@ -756,10 +824,7 @@ const AudioPlayer: React.FC = () => {
   const PLAYLIST_EMPTY_ROWS = 4; // Changed from 5 to 4
 
   const getTracks = () => {
-    // Ensure we always return an array
-    if (playlist?.tracks?.length) {
-      return playlist.tracks;
-    }
+    // Always return queue tracks
     return queueTracks || [];
   };
 
@@ -962,8 +1027,16 @@ const AudioPlayer: React.FC = () => {
           {...provided.draggableProps}
           sx={{
             backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
-            '&:hover': { backgroundColor: 'action.hover' },
-            ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
+            '&:hover': { 
+              backgroundColor: index === currentTrackIndex ? 'primary.dark' : 'action.hover' 
+            },
+            ...(index === currentTrackIndex && { 
+              backgroundColor: 'primary.main',
+              color: 'primary.contrastText',
+              '& .MuiTableCell-root': {
+                color: 'inherit'
+              }
+            }),
           }}
         >
           <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
@@ -971,21 +1044,43 @@ const AudioPlayer: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
-              height: '100%' 
+              height: '100%',
+              animation: index === currentTrackIndex && isPlaying ? 'pulse 1s infinite' : 'none',
+              '@keyframes pulse': {
+                '0%': { opacity: 1 },
+                '50%': { opacity: 0.5 },
+                '100%': { opacity: 1 },
+              }
             }}>
-              {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+              {index === currentTrackIndex ? (
+                <MusicNoteIcon sx={{ color: isPlaying ? 'inherit' : 'text.secondary' }} />
+              ) : (
+                track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />
+              )}
             </Box>
           </TableCell>
           <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
-          <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+          <TableCell 
+            onClick={() => handleTrackNameClick(index)}
+            sx={{ 
+              ...cellStyles, 
+              py: 1, 
+              px: { xs: 0.5, sm: 1 }, 
+              typography: 'body2',
+              '&:hover': { textDecoration: 'underline' }
+            }}
+          >
             <span>{track.name}</span>
           </TableCell>
-          <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
-          <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
+          <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+            {formatDuration(track.duration)}
+          </TableCell>
+          <TableCell sx={{ p: 0 }}>
             <Box sx={actionButtonsSx}>
-              <IconButton size="small" onClick={() => handleTrackSelection(index)}>
-                {index === currentTrackIndex && isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-              </IconButton>
+              <FavoriteIconComponent 
+                isFavorite={favorites.includes(track.id)}
+                onClick={() => toggleFavorite(track.id)}
+              />
               <IconButton size="small" onClick={() => removeFromQueue(track.id)}>
                 <DeleteIcon />
               </IconButton>
@@ -993,8 +1088,8 @@ const AudioPlayer: React.FC = () => {
                 <DragHandleIcon />
               </Box>
             </Box>
-          </TableCell>
-        </TableRow>
+            </TableCell>
+          </TableRow>
       )}
     </Draggable>
   );
@@ -1127,28 +1222,11 @@ const AudioPlayer: React.FC = () => {
   };
 
   const handleQueueUrlSubmit = async () => {
-    if (!queuePlaylistUrl) return;
-    
-    try {
-      // Check if it's a playlist URL
-      const playlistId = extractYoutubePlaylistId(queuePlaylistUrl);
-      if (playlistId) {
-        // Import playlist directly to queue
-        const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
-        setImportProgress({ current: 0, total: details.itemCount });
-        const tracks = await playlistService.fetchYouTubePlaylistTracks(playlistId);
-        for (const track of tracks) {
-          await addToQueue(track); // Add each track to queue
-        }
-        showToast('Playlist imported to queue successfully', 'success');
-      } else {
-        // Try adding as single track
-        await handleAddTrack();
-      }
-      setQueuePlaylistUrl('');
-    } catch (error) {
-      showToast('Error processing URL', 'error');
-    }
+    await handleAddTrack('queue');
+  };
+
+  const handlePlaylistUrlSubmit = async () => {
+    await handleAddTrack('playlist');
   };
 
   const handleQueueDrop = async (url: string) => {
@@ -1187,7 +1265,7 @@ const AudioPlayer: React.FC = () => {
         return;
       }
       const trackData = await getVideoDetails(videoId);
-      if (trackData) {
+      if (trackData && currentPlaylistId) {
         const newTrack: Track = {
           id: Date.now().toString(),
           url: url,
@@ -1306,7 +1384,7 @@ const AudioPlayer: React.FC = () => {
             startIcon={<YouTubeIcon />}
             onClick={() => setYoutubePlaylistDialog(true)}
           >
-            Playlist
+            Import YT List to Queue
           </Button>
           <Button
             variant="outlined"
@@ -1349,7 +1427,7 @@ const AudioPlayer: React.FC = () => {
         <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
         <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
           <Box sx={actionButtonsSx}>
-            <IconButton size="small" onClick={() => handleAddTrackToQueue(track)}>
+            <IconButton size="small" onClick={() => addToQueue(track)}>
               <QueueMusicIcon />
             </IconButton>
             <IconButton size="small" onClick={() => {
@@ -1369,23 +1447,56 @@ const AudioPlayer: React.FC = () => {
     );
   };
 
+  const getFavoritesPlaylist = (): Playlist => ({
+    id: 'favorites',
+    name: 'Favorites',
+    description: '',
+    tracks: playlist?.tracks || [],
+    isPublic: false,
+    type: 'system',    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+
   const renderPlaylistHeader = () => (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-      <Typography variant="h6">{playlists.find(p => p.id === currentPlaylistId)?.name || 'Playlist'}</Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6">
+          {currentPlaylistId === 'favorites' ? 'Favorites' : 
+           playlists.find(p => p.id === currentPlaylistId)?.name || 'Playlist'}
+        </Typography>
+        <IconButton 
+          size="small" 
+          onClick={(e) => setPlaylistMenu(e.currentTarget)}
+        >
+          <ArrowDropDownIcon />
+        </IconButton>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* Only show delete button for non-favorites playlists */}
+        {currentPlaylistId !== 'favorites' && currentPlaylistId !== 'default' && (
+          <IconButton
+            size="small"
+            color="error"
+            onClick={handleDeletePlaylist}
+            title="Delete playlist"
+          >
+            <DeleteIcon />
+          </IconButton>
+        )}
         <IconButton
           onClick={() => {
-            const currentPlaylist = playlists.find(p => p.id === currentPlaylistId);
+            const currentPlaylist = currentPlaylistId === 'favorites' ? 
+              getFavoritesPlaylist() : 
+              playlists.find(p => p.id === currentPlaylistId);
             if (currentPlaylist) handleAddPlaylistToQueue(currentPlaylist);
           }}
           title="Add entire playlist to queue"
+          size="small"
         >
           <QueueMusicIcon />
         </IconButton>
-        <IconButton onClick={() => setShowPlaylistDropdown(!showPlaylistDropdown)}>
-          {showPlaylistDropdown ? <ArrowDropUpIcon /> : <ArrowDropDownIcon />}
-        </IconButton>
       </Box>
+      {renderPlaylistDropdown()}
     </Box>
   );
 
@@ -1438,7 +1549,9 @@ const AudioPlayer: React.FC = () => {
   
   const renderYoutubePlaylistDialog = () => (
     <Dialog open={youtubePlaylistDialog} onClose={() => !importLoading && setYoutubePlaylistDialog(false)}>
-      <DialogTitle>Import YouTube List</DialogTitle>
+      <DialogTitle>
+        {queuePlaylistUrl ? 'Import YouTube List to Queue' : 'Import YouTube List to Playlist'}
+      </DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -1446,9 +1559,15 @@ const AudioPlayer: React.FC = () => {
           label="YouTube List URL"
           fullWidth
           disabled={importLoading}
-          value={newPlaylistData.youtubeUrl}
-          onChange={(e) => setNewPlaylistData(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-          helperText="Enter the full YouTube list URL"
+          value={queuePlaylistUrl ? queuePlaylistUrl : newPlaylistData.youtubeUrl}
+          onChange={(e) => {
+            if (queuePlaylistUrl !== undefined) {
+              setQueuePlaylistUrl(e.target.value);
+            } else {
+              setNewPlaylistData(prev => ({ ...prev, youtubeUrl: e.target.value }));
+            }
+          }}
+          helperText={`Enter YouTube playlist URL to import to ${queuePlaylistUrl ? 'queue' : 'playlist'}`}
         />
         {importLoading && (
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1465,7 +1584,7 @@ const AudioPlayer: React.FC = () => {
         </Button>
         <Button
           onClick={handleImportYoutubePlaylist}
-          disabled={importLoading || !newPlaylistData.youtubeUrl}
+          disabled={importLoading || (!queuePlaylistUrl && !newPlaylistData.youtubeUrl)} // Fixed condition
           startIcon={importLoading ? <CircularProgress size={16} /> : null}
         >
           {importLoading ? 'Importing...' : 'Import'}
@@ -1545,7 +1664,7 @@ const AudioPlayer: React.FC = () => {
               endAdornment: (
                 <Button
                   variant="contained"
-                  onClick={handleAddTrack}
+                  onClick={handlePlaylistUrlSubmit}
                   size="small"
                   sx={addButtonStyles}
                 >
@@ -1571,7 +1690,7 @@ const AudioPlayer: React.FC = () => {
           </Button>
         </Box>
         
-        {renderQueueButtons()}
+        {renderPlaylistButtons()}
       </Box>
     </Paper>
   );
@@ -1579,44 +1698,126 @@ const AudioPlayer: React.FC = () => {
   const renderQueueButtons = () => (
     <Box sx={{ display: 'flex', gap: 1 }}>
       <Button
+        id="queue-yt-playlist-btn"
         variant="outlined"
         fullWidth
         startIcon={<YouTubeIcon />}
-        onClick={() => setYoutubePlaylistDialog(true)}
+        onClick={() => {
+          setQueuePlaylistUrl(''); // Clear first
+          setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' }));
+          setYoutubePlaylistDialog(true);
+        }}
       >
-        Playlist
+        Import YT List to Queue
       </Button>
       <Button
+        id="queue-save-btn"
         variant="outlined"
         fullWidth
         onClick={() => setNewPlaylistDialog(true)}
         startIcon={<SaveIcon />}
       >
-        Playlist
+        Save Queue
       </Button>
     </Box>
   );
 
+  const renderPlaylistButtons = () => (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <Button
+        id="playlist-yt-playlist-btn"
+        variant="outlined"
+        fullWidth
+        startIcon={<YouTubeIcon />}
+        onClick={() => {
+          setYoutubePlaylistDialog(true);
+          setQueuePlaylistUrl(''); // Clear queue URL
+        }}
+      >
+        Import to Playlist
+      </Button>
+      <Button
+        id="playlist-create-btn"
+        variant="outlined"
+        fullWidth
+        onClick={() => setNewPlaylistDialog(true)}
+        startIcon={<SaveIcon />}
+      >
+        Create Playlist
+      </Button>
+    </Box>
+  );
+
+  const renderPlaylistDropdown = () => (
+    <Menu
+      anchorEl={playlistMenu}
+      open={Boolean(playlistMenu)}
+      onClose={() => setPlaylistMenu(null)}
+      sx={{ maxHeight: '300px' }}
+    >
+      <MenuItem 
+        onClick={() => {
+          setCurrentPlaylistId('favorites');
+          setPlaylistMenu(null);
+        }}
+        selected={currentPlaylistId === 'favorites'}
+      >
+        <FavoriteIcon sx={{ mr: 1 }} /> Favorites
+      </MenuItem>
+      {playlists.map((playlist) => (
+        <MenuItem
+          key={playlist.id}
+          onClick={() => {
+            setCurrentPlaylistId(playlist.id);
+            setPlaylistMenu(null);
+          }}
+          selected={currentPlaylistId === playlist.id}
+        >
+          {playlist.name}
+        </MenuItem>
+      ))}
+    </Menu>
+  );
+
   const handleSaveQueue = async () => {
-    if (user && newPlaylistData.name && queueTracks.length > 0) {
-      try {
-        const newPlaylistId = await playlistService.createPlaylist(user.uid, {
-          name: newPlaylistData.name,
-          description: '',
-          tracks: queueTracks,
-          isPublic: false,
-          type: 'custom',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        });
-        setNewPlaylistDialog(false);
-        setNewPlaylistData(prev => ({ ...prev, name: '' }));
-        showToast('Queue saved as playlist successfully', 'success');
+    // Allow saving even without user for local storage
+    if (!newPlaylistData.name || !queueTracks?.length) {
+      showToast('Please enter a playlist name and ensure queue has tracks', 'error');
+      return;
+    }
+    
+    try {
+      const newPlaylist = {
+        name: newPlaylistData.name,
+        description: '',
+        tracks: queueTracks,
+        isPublic: false,
+        type: 'custom' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      if (user) {
+        // Save to Firebase if user is logged in
+        const newPlaylistId = await playlistService.createPlaylist(user.uid, newPlaylist);
         await loadPlaylists();
-      } catch (error) {
-        console.error('Error saving queue:', error);
-        showToast('Error saving queue', 'error');
+        setCurrentPlaylistId(newPlaylistId);
+      } else {
+        // Save to local storage if no user
+        const localPlaylists = JSON.parse(localStorage.getItem('playlists') || '[]');
+        const playlistWithId = { ...newPlaylist, id: Date.now().toString() };
+        localPlaylists.push(playlistWithId);
+        localStorage.setItem('playlists', JSON.stringify(localPlaylists));
+        setPlaylists(localPlaylists);
       }
+
+      setNewPlaylistDialog(false);
+      setNewPlaylistData(prev => ({ ...prev, name: '' }));
+      showToast('Queue saved as playlist successfully', 'success');
+      
+    } catch (error) {
+      console.error('Error saving queue:', error);
+      showToast('Error saving queue', 'error');
     }
   };
 
@@ -1650,6 +1851,89 @@ const AudioPlayer: React.FC = () => {
           }
         ]
       });
+    }
+  };
+
+  const handleTrackNameClick = async (index: number) => {
+    const track = queueTracks[index];
+    if (!track) return;
+    
+    try {
+      setCurrentTrackIndex(index);
+      setCurrentTime(0);
+      setSliderValue(0);
+      await handlePlayTrack(track);
+    } catch (error) {
+      console.error('Error playing track:', error);
+      showToast('Error playing track', 'error');
+      
+      // If local file not found, try next track
+      if (track.type === 'local') {
+        handleNextTrack();
+      }
+    }
+  };
+
+  // Add handler to create favorites playlist if it doesn't exist
+  const initializeFavoritesPlaylist = async () => {
+    if (!user) return;
+    
+    try {
+      const favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
+      
+      if (!favoritesPlaylist) {
+        await playlistService.createPlaylist(user.uid, {
+          name: 'Favorites',
+          description: 'Your favorite tracks',
+          tracks: [],
+          isPublic: false,
+          type: 'system',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+    } catch (error) {
+      console.error('Error initializing favorites playlist:', error);
+    }
+  };
+
+  // Update effect to initialize favorites playlist
+  useEffect(() => {
+    if (user) {
+      initializeFavoritesPlaylist().then(() => {
+        // Explicitly load favorites playlist after initialization
+        if (currentPlaylistId === 'favorites') {
+          refreshPlaylist();
+        }
+      });
+    }
+  }, [user]);
+
+  const handleDeletePlaylist = async () => {
+    if (currentPlaylistId === 'favorites' || currentPlaylistId === 'default') return;
+    
+    const playlistToDelete = playlists.find(p => p.id === currentPlaylistId);
+    if (!playlistToDelete) return;
+
+    if (window.confirm('Are you sure you want to delete this playlist?')) {
+      try {
+        if (user) {
+          // Delete from Firebase
+          await playlistService.deletePlaylist(user.uid, currentPlaylistId);
+        } else {
+          // Delete from local storage
+          const localPlaylists = playlists.filter(p => p.id !== currentPlaylistId);
+          localStorage.setItem('playlists', JSON.stringify(localPlaylists));
+          setPlaylists(localPlaylists);
+        }
+  
+        showToast('Playlist deleted successfully', 'success');
+        setCurrentPlaylistId('default');
+        await loadPlaylists();
+      } catch (error) {
+        console.error('Error deleting playlist:', error);
+        showToast('Error deleting playlist', 'error');
+      }
     }
   };
 

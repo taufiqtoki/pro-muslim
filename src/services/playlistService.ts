@@ -88,12 +88,12 @@ export const playlistService = {
   },
 
   // Get playlist from Firestore
-  async getPlaylist(userId: string, playlistId: string): Promise<Playlist> {
+  async getPlaylist(userId: string, playlistId: string): Promise<Playlist | null> {
     const playlistRef = doc(db, `users/${userId}/playlists/${playlistId}`);
-    const playlistSnap = await getDoc(playlistRef);
+    const playlistDoc = await getDoc(playlistRef);
     
-    if (playlistSnap.exists()) {
-      return playlistSnap.data() as Playlist;
+    if (playlistDoc.exists()) {
+      return playlistDoc.data() as Playlist;
     }
 
     // Create default playlist if it doesn't exist
@@ -102,7 +102,7 @@ export const playlistService = {
       description: '',
       tracks: [],
       isPublic: false,
-      type: 'queue',
+      type: playlistId === 'queue' ? 'queue' : 'system',
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -455,4 +455,22 @@ export const playlistService = {
   },
 
   fetchPlaylistTracks,
+};
+
+// Add this method if it doesn't exist
+
+export const getPlaylist = async (userId: string, playlistId: string): Promise<Playlist | null> => {
+  try {
+    const playlistRef = doc(db, `users/${userId}/playlists/${playlistId}`);
+    const playlistDoc = await getDoc(playlistRef);
+    
+    if (playlistDoc.exists()) {
+      return playlistDoc.data() as Playlist;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting playlist:', error);
+    return null;
+  }
 };

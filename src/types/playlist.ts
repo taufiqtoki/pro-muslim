@@ -29,12 +29,13 @@ export interface Track {
 export interface Playlist {
   id: string;
   name: string;
-  description?: string;
-  createdAt: number;
-  updatedAt: number;
+  description: string;
   tracks: Track[];
   isPublic: boolean;
-  type: 'queue' | 'online' | 'offline' | 'favorites' | 'youtube' | 'custom';
+  type: 'custom' | 'youtube' | 'system' | 'queue';
+  createdAt: number;
+  updatedAt: number;
+  userId?: string;
   source?: {
     youtubePlaylistId?: string;
     url?: string;
