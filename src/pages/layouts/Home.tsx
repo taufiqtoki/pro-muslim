@@ -9,6 +9,8 @@ import { useTheme } from '../../contexts/ThemeContext.tsx';
 import { useAuth } from '../../hooks/useAuth.ts';
 import BottomNavigation from "../../components/Navigation/BottomNavigation.tsx";
 import AuthModal from '../../components/AuthModal.tsx';
+import YouTube from 'react-youtube';
+import { usePlayer } from '../../contexts/PlayerContext.tsx';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -20,7 +22,7 @@ export const Home: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   const isPC = useMediaQuery(theme.breakpoints.up('md'));
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const { youtubeRef, audioRef, currentTrack, isPlaying, handleNextTrack } = usePlayer();
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -35,23 +37,66 @@ export const Home: React.FC = () => {
     handleMenuClose();
   };
 
+  // Add event handlers for YouTube player
+  const handleYoutubeStateChange = (event: any) => {
+    if (event.data === YouTube.PlayerState.ENDED) {
+      handleNextTrack();
+    }
+  };
+
   return (
     <Box 
       sx={{
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        gap: { xs: 1, sm: 2 },
-        p: { xs: 1, sm: 2 },
       }}
     >
+      {/* Hidden audio players */}
+      <Box sx={{ display: 'none' }}>
+        {/* YouTube player */}
+        {currentTrack?.type === 'youtube' && (
+          <YouTube
+            videoId={currentTrack.videoId}
+            ref={youtubeRef}
+            opts={{
+              height: '1',
+              width: '1',
+              playerVars: {
+                autoplay: isPlaying ? 1 : 0,
+                controls: 0,
+                modestbranding: 1,
+                rel: 0,
+                showinfo: 0,
+                iv_load_policy: 3,
+                enablejsapi: 1,
+                playsinline: 1
+              },
+            }}
+            onStateChange={handleYoutubeStateChange}
+          />
+        )}
+        {/* Audio element */}
+        <audio
+          ref={audioRef}
+          onEnded={handleNextTrack}
+        />
+      </Box>
+
       <AppBar 
         position="static" 
         elevation={0}
         sx={{ 
           bgcolor: 'background.paper',
           borderBottom: 1,
-          borderColor: 'divider'
+          borderColor: 'divider',
+          height: '8vh', // Add this line to make height 8% of viewport height
+          minHeight: '48px', // Add minimum height for very small screens
+          '& .MuiToolbar-root': { // Add this to adjust toolbar height
+            minHeight: '100% !important',
+            height: '100%',
+            padding: '0 16px'
+          }
         }}
       >
         <Toolbar>
@@ -135,12 +180,16 @@ export const Home: React.FC = () => {
         </Toolbar>
       </AppBar>
       
-      <Box sx={{ flex: 1, pb: 7, overflow: 'auto' }}>
+      <Box sx={{ 
+        flex: 1, 
+        pb: 7, 
+        overflow: 'auto',
+        height: '92vh',
+      }}>
         <Outlet />
       </Box>
 
       <BottomNavigation />
-
       <AuthModal 
         open={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 

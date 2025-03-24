@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { debounce } from '../hooks/useDebounce.ts';
 import {
   Box, IconButton, Slider, Typography, TextField, Button, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Grid, useTheme, Select, MenuItem, Dialog,
-  DialogTitle, DialogContent, DialogActions, CircularProgress, Menu
+  DialogTitle, DialogContent, DialogActions, CircularProgress, Menu, Tooltip
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -46,6 +47,13 @@ import AddIcon from '@mui/icons-material/Add';
 import { localFileService } from '../services/localFileService.ts';
 import { useDragAndDrop } from '../hooks/useDragAndDrop.ts';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import { usePlayer } from '../contexts/PlayerContext.tsx';
+import MiniPlayer from './AudioPlayer/MiniPlayer.tsx';
+import { RepeatMode } from '../types/player.ts';
+import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreen';
+import ShuffleIcon from '@mui/icons-material/Shuffle';
+import { logger } from '../utils/logger.ts';
+import { FixedSizeList as List } from 'react-window';
 
 const FavoriteIconComponent: React.FC<{ 
   isFavorite: boolean;
@@ -72,11 +80,29 @@ const SUPPORTED_FORMATS = [
   'video/x-msvideo', 'video/x-ms-wmv', 'video/x-flv'
 ];
 
+const loadQueueTracks = async () => {
+  // Implementation will depend on your queue storage method
+  const savedQueue = localStorage.getItem('queue');
+  return savedQueue ? JSON.parse(savedQueue) : [];
+};
+
 const AudioPlayer: React.FC = () => {
   const { showToast } = useToast();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const {
+    isPlaying,
+    currentTrack,
+    currentTime,
+    duration,
+    setIsPlaying,
+    setCurrentTrack,
+    setCurrentTime,
+    setDuration,
+    togglePlay,
+    audioRef,
+    youtubeRef,
+    repeatMode,
+    setRepeatMode
+  } = usePlayer();
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | undefined>(undefined);
   const [newTrackUrl, setNewTrackUrl] = useState('');
@@ -85,13 +111,11 @@ const AudioPlayer: React.FC = () => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [youtubePlaylistDialog, setYoutubePlaylistDialog] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const youtubeRef = useRef<any>(null);
   const { user } = useAuth();
   const theme = useTheme();
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string>('default');
-  const { playlist, loading, error, addTrack, removeTrack, updateTrack, refreshPlaylist } = usePlaylist(currentPlaylistId);
-  const { queueTracks, addToQueue, removeFromQueue, clearQueue } = useQueue();
+  const { playlist, loading, error, addTrack, removeTrack, updateTrack, refreshPlaylist, updatePlaylist } = usePlaylist(currentPlaylistId);
+  const { queueTracks, setQueueTracks, addToQueue, removeFromQueue, clearQueue } = useQueue();
   const [youtubeDuration, setYoutubeDuration] = useState(0);
   const [sliderValue, setSliderValue] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -111,6 +135,8 @@ const AudioPlayer: React.FC = () => {
   const queueDragDrop = useDragAndDrop();
   const playlistDragDrop = useDragAndDrop();
   const [playlistMenu, setPlaylistMenu] = useState<null | HTMLElement>(null);
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const youtubeOpts = {
     height: '1',
@@ -156,7 +182,7 @@ const AudioPlayer: React.FC = () => {
         const userPlaylists = await playlistService.getUserPlaylists(user.uid);
         setPlaylists(userPlaylists);
       } catch (error) {
-        console.error('Error loading playlists:', error);
+        logger.error('Error loading playlists:', error);
         showToast('Error loading playlists', 'error');
       }
     } else {
@@ -182,7 +208,7 @@ const AudioPlayer: React.FC = () => {
         await loadPlaylists();
         setCurrentPlaylistId(newPlaylistId);
       } catch (error) {
-        console.error('Error creating playlist:', error);
+        logger.error('Error creating playlist:', error);
         showToast('Error creating playlist', 'error');
       }
     }
@@ -236,15 +262,20 @@ const AudioPlayer: React.FC = () => {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setFavorites(userData.favorites || []);
+            logger.log('Loaded favorites:', userData.favorites || []); // Add this line
             localStorage.setItem('favorites', JSON.stringify(userData.favorites || []));
           }
         } catch (error) {
-          console.error('Error loading favorites:', error);
+          logger.error('Error loading favorites:', error);
           showToast('Error loading favorites', 'error');
         }
       } else {
         const localFavorites = localStorage.getItem('favorites');
-        if (localFavorites) setFavorites(JSON.parse(localFavorites));
+        if (localFavorites) {
+          const parsedFavorites = JSON.parse(localFavorites);
+          setFavorites(parsedFavorites);
+          logger.log('Loaded local favorites:', parsedFavorites); // Add this line
+        }
       }
     };
     loadFavorites();
@@ -265,6 +296,7 @@ const AudioPlayer: React.FC = () => {
       // Update favorites array in state and localStorage
       setFavorites(newFavorites);
       localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      logger.log('Updated favorites:', newFavorites); // Add this line
       
       if (user) {
         // Update favorites in user document
@@ -278,7 +310,7 @@ const AudioPlayer: React.FC = () => {
 
       showToast(isFavorite ? 'Removed from favorites' : 'Added to favorites', 'success');
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      logger.error('Error toggling favorite:', error);
       showToast('Error updating favorites', 'error');
     }
   };
@@ -318,26 +350,27 @@ const AudioPlayer: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Error in handlePlayPause:', error);
+      logger.error('Error in handlePlayPause:', error);
       showToast('Error playing track', 'error');
     }
   };
 
   const handleTimeUpdate = () => {
-    if (audioRef.current && !isDragging) {
-      const time = audioRef.current.currentTime;
-      setCurrentTime(time);
-      setSliderValue(time);
-      setDuration(audioRef.current.duration || 0);
+    const audio = audioRef.current;
+    if (!audio || isDragging) return;
 
-      // Update playback position state
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.setPositionState({
-          duration: audioRef.current.duration || 0,
-          position: time,
-          playbackRate: audioRef.current.playbackRate
-        });
-      }
+    const time = audio.currentTime;
+    setCurrentTime(time);
+    setSliderValue(time);
+    setDuration(audio.duration || 0);
+
+    // Update playback position state
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setPositionState({
+        duration: audio.duration || 0,
+        position: time,
+        playbackRate: audio.playbackRate
+      });
     }
   };
 
@@ -374,7 +407,7 @@ const AudioPlayer: React.FC = () => {
             setSliderValue(currentTime);
             setDuration(duration);
           } catch (error) {
-            console.error('Error updating YouTube time:', error);
+            logger.error('Error updating YouTube time:', error);
           }
         }
       }, 1000);
@@ -440,7 +473,7 @@ const AudioPlayer: React.FC = () => {
         setSliderValue(newTime);
       }
     } catch (error) {
-      console.error('Error seeking:', error);
+      logger.error('Error seeking:', error);
     }
   };
 
@@ -517,7 +550,7 @@ const AudioPlayer: React.FC = () => {
           await addTrack(newTrack);
         }
       } catch (error) {
-        console.error('Error adding track:', error);
+        logger.error('Error adding track:', error);
         showToast('Error adding track', 'error');
       }
     }
@@ -525,6 +558,7 @@ const AudioPlayer: React.FC = () => {
 
   const handlePlayTrack = async (track: Track) => {
     try {
+      setCurrentTrack(track);
       updateMediaSessionMetadata(track);
       
       if (youtubeVideoId && track.type === 'local') {
@@ -581,7 +615,7 @@ const AudioPlayer: React.FC = () => {
       if (currentPlaylistId === 'favorites') refreshPlaylist();
     } catch (error) {
       showToast('Error removing track', 'error');
-      console.error('Error removing track:', error);
+      logger.error('Error removing track:', error);
     }
   };
 
@@ -595,7 +629,7 @@ const AudioPlayer: React.FC = () => {
       setIsPlaying(false);
       await handlePlayTrack(track);
     } catch (error) {
-      console.error('Error selecting track:', error);
+      logger.error('Error selecting track:', error);
       showToast('Error playing track', 'error');
     }
   };
@@ -603,7 +637,7 @@ const AudioPlayer: React.FC = () => {
   const handleYoutubeStateChange = (event: any) => {
     switch (event.data) {
       case YouTube.PlayerState.ENDED:
-        handleNextTrack();
+        handleTrackEnd();
         break;
       case YouTube.PlayerState.PLAYING:
         setIsPlaying(true);
@@ -627,7 +661,7 @@ const AudioPlayer: React.FC = () => {
           setSliderValue(currentTime);
           setDuration(duration);
         } catch (error) {
-          console.error('Error updating YouTube time:', error);
+          logger.error('Error updating YouTube time:', error);
         }
       }
     }, 1000);
@@ -663,12 +697,12 @@ const AudioPlayer: React.FC = () => {
             try {
               await player.playVideo();
             } catch (error) {
-              console.error('Error auto-playing:', error);
+              logger.error('Error auto-playing:', error);
             }
           }
         }}
         onError={(error) => {
-          console.error('YouTube player error:', error);
+          logger.error('YouTube player error:', error);
           showToast('Error playing YouTube track', 'error');
         }}
         opts={youtubeOpts}
@@ -744,7 +778,8 @@ const AudioPlayer: React.FC = () => {
   const renderEmptyRows = (count: number) => (
     Array.from({ length: count }).map((_, index) => (
       <TableRow 
-        key={`empty-${index}`}
+        // Change key to include a unique prefix and parent list identifier
+        key={`empty-${currentPlaylistId}-${index}`}
         sx={{ 
           height: '36px',
           minHeight: '36px',
@@ -807,7 +842,7 @@ const AudioPlayer: React.FC = () => {
     return queueTracks || [];
   };
 
-  const getCurrentTrack = () => {
+  const getCurrentTrack = (): Track | null => {
     const tracks = getTracks();
     return tracks.length > 0 ? tracks[currentTrackIndex] : null;
   };
@@ -858,133 +893,146 @@ const AudioPlayer: React.FC = () => {
     return <VolumeUpIcon />;
   };
 
-  const renderMainContent = () => (
-    <Paper elevation={3} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
-      {getCurrentTrack()?.thumbnail && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-          <img
-            src={getCurrentTrack().thumbnail}
-            alt="Track Thumbnail"
-            style={{
-              width: '150px', 
-              height: '150px',
-              borderRadius: '12px', 
-              boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', 
-              objectFit: 'cover',
-            }}
-          />
-        </Box>
-      )}
-      {renderMainTitle()}
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center',
-        width: '100%',
-        gap: 1, // Increased gap for better spacing
-        px: 1 // Add horizontal padding
-      }}>
-        <Typography sx={{ 
-          color: 'text.secondary',
-          minWidth: '32px', // Reduced fixed width
-          textAlign: 'right',
-          fontSize: '0.875rem',
-          marginRight: '2px' // Added right margin
-        }}>
-          {formatTime(currentTime)}
-        </Typography>
-
-        <Box sx={{ flex: 1 }}>
-          <Slider
-            value={sliderValue}
-            max={duration || 100}
-            onChange={handleSliderChange}
-            onChangeCommitted={handleSliderChangeCommitted}
-            sx={{ 
-              '& .MuiSlider-thumb': {
-                width: 12,
-                height: 12
-              }
-            }}
-          />
-        </Box>
-
-        <Typography sx={{ 
-          color: 'text.secondary',
-          minWidth: '32px', // Reduced fixed width
-          textAlign: 'left',
-          fontSize: '0.875rem'
-        }}>
-          {formatTime(duration)}
-        </Typography>
-
+  const renderMainContent = () => {
+    const currentTrack = getCurrentTrack();
+    return (
+      <Paper elevation={3} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+        {currentTrack?.thumbnail && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <img
+              src={currentTrack.thumbnail}
+              alt="Track Thumbnail"
+              style={{
+                width: '150px', 
+                height: '150px',
+                borderRadius: '12px', 
+                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', 
+                objectFit: 'cover',
+              }}
+            />
+          </Box>
+        )}
+        {renderMainTitle()}
         <Box sx={{ 
-          position: 'relative',
-          display: 'flex',
+          display: 'flex', 
           alignItems: 'center',
-          justifyContent: 'center',
-          width: '32px' // Match other elements width
+          width: '100%',
+          gap: 1, // Increased gap for better spacing
+          px: 1 // Add horizontal padding
         }}>
-          <IconButton 
-            onClick={toggleMute}
-            onMouseEnter={handleVolumeOpen}
-            size="small"
-            sx={{ p: 0.5 }} // Reduced padding further
-          >
-            {getVolumeIcon()}
-          </IconButton>
-          {isVolumeOpen && (
-            <Paper 
-              sx={{
-                position: 'absolute',
-                // top: '-90px', // Adjusted to match new height
-                left: '50%',
-                transform: 'translateX(-50%)',
-                p: 2,
-                width: 30,
-                height: 80, // Changed from 100 to 90
-                display: 'flex',
-                alignItems: 'center',
-                zIndex: 4,
-                boxShadow: 3
-              }}
-              onMouseEnter={() => {
-                if (volumeTimeout) clearTimeout(volumeTimeout);
-              }}
-              onMouseLeave={() => {
-                const timeout = setTimeout(() => {
-                  setIsVolumeOpen(false);
-                }, 3000);
-                setVolumeTimeout(timeout);
-              }}
-            >
-              <Slider
-                orientation="vertical"
-                value={volume}
-                onChange={handleVolumeChange}
-                aria-label="Volume"
-                min={0}
-                max={100}
-                sx={{ height: '100%' }}
-              />
-            </Paper>
-          )}
-        </Box>
-      </Box>
-      <Box sx={{ width: '100%', mb: 1, overflow: 'auto' }}>
-        <PlaybackControls
-          isPlaying={isPlaying}
-          onPlayPause={handlePlayPause}
-          onNext={handleNextTrack}
-          onPrevious={handlePreviousTrack}
-          onSeek={seek}
-        />
-      </Box>
+          <Typography sx={{ 
+            color: 'text.secondary',
+            minWidth: '32px', // Reduced fixed width
+            textAlign: 'right',
+            fontSize: '0.875rem',
+            marginRight: '2px' // Added right margin
+          }}>
+            {formatTime(currentTime)}
+          </Typography>
 
-      <Box sx={{ width: '100%', overflow: 'auto' }}>
-        <SpeedControls onSpeedChange={changePlaybackRate} />
-      </Box>
-    </Paper>
-  );
+          <Box sx={{ flex: 1 }}>
+            <Slider
+              value={sliderValue}
+              max={duration || 100}
+              onChange={handleSliderChange}
+              onChangeCommitted={handleSliderChangeCommitted}
+              sx={{ 
+                '& .MuiSlider-thumb': {
+                  width: 12,
+                  height: 12
+                }
+              }}
+            />
+          </Box>
+
+          <Typography sx={{ 
+            color: 'text.secondary',
+            minWidth: '32px', // Reduced fixed width
+            textAlign: 'left',
+            fontSize: '0.875rem'
+          }}>
+            {formatTime(duration)}
+          </Typography>
+
+          <Box sx={{ 
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '32px' // Match other elements width
+          }}>
+            <IconButton 
+              onClick={toggleMute}
+              onMouseEnter={handleVolumeOpen}
+              size="small"
+              sx={{ p: 0.5 }} // Reduced padding further
+            >
+              {getVolumeIcon()}
+            </IconButton>
+            {isVolumeOpen && (
+              <Paper 
+                sx={{
+                  position: 'absolute',
+                  // top: '-90px', // Adjusted to match new height
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  p: 2,
+                  width: 30,
+                  height: 80, // Changed from 100 to 90
+                  display: 'flex',
+                  alignItems: 'center',
+                  zIndex: 4,
+                  boxShadow: 3
+                }}
+                onMouseEnter={() => {
+                  if (volumeTimeout) clearTimeout(volumeTimeout);
+                }}
+                onMouseLeave={() => {
+                  const timeout = setTimeout(() => {
+                    setIsVolumeOpen(false);
+                  }, 3000);
+                  setVolumeTimeout(timeout);
+                }}
+              >
+                <Slider
+                  orientation="vertical"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  aria-label="Volume"
+                  min={0}
+                  max={100}
+                  sx={{ height: '100%' }}
+                />
+              </Paper>
+            )}
+          </Box>
+        </Box>
+        <Box sx={{ width: '100%', mb: 1, overflow: 'auto' }}>
+          <PlaybackControls
+            isPlaying={isPlaying}
+            onPlayPause={handlePlayPause}
+            onNext={handleNextTrack}
+            onPrevious={handlePreviousTrack}
+            onSeek={seek}
+            repeatMode={repeatMode}
+            onRepeatModeChange={setRepeatMode}
+            isShuffled={isShuffled}
+            onShuffleToggle={handleShuffleToggle}
+          />
+        </Box>
+
+        <Box sx={{ width: '100%', overflow: 'auto' }}>
+          <SpeedControls onSpeedChange={changePlaybackRate} />
+        </Box>
+        <IconButton
+          onClick={() => setIsMinimized(true)}
+          sx={{ position: 'absolute', top: 8, right: 8 }}
+        >
+          <CloseFullscreenIcon />
+        </IconButton>
+      </Paper>
+    );
+  };
 
   const renderMainTitle = () => (
     <Box sx={{ width: '100%', mb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '40px' }}>
@@ -999,7 +1047,12 @@ const AudioPlayer: React.FC = () => {
   );
 
   const renderQueueTrackRow = (track: Track, index: number) => (
-    <Draggable key={track.id} draggableId={track.id} index={index}>
+    <Draggable 
+      // Add index to make key more unique
+      key={`queue-${track.id}-${index}`} 
+      draggableId={track.id} 
+      index={index}
+    >
       {(provided) => (
         <TableRow
           ref={provided.innerRef}
@@ -1077,6 +1130,15 @@ const AudioPlayer: React.FC = () => {
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
       <Typography variant="h6">Queue</Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Tooltip title={`Shuffle: ${isShuffled ? 'On' : 'Off'}`}>
+          <IconButton 
+            onClick={handleShuffleToggle}
+            color={isShuffled ? 'primary' : 'default'}
+            size="small"
+          >
+            <ShuffleIcon />
+          </IconButton>
+        </Tooltip>
         <IconButton 
           onClick={clearQueue}
           title="Clear queue"
@@ -1231,7 +1293,7 @@ const AudioPlayer: React.FC = () => {
         showToast('Track added to queue', 'success');
       }
     } catch (error) {
-      console.error('Error processing dropped URL:', error);
+      logger.error('Error processing dropped URL:', error);
       showToast('Error adding URL to queue', 'error');
     }
   };
@@ -1259,7 +1321,7 @@ const AudioPlayer: React.FC = () => {
         showToast('Track added to playlist', 'success');
       }
     } catch (error) {
-      console.error('Error processing dropped URL:', error);
+      logger.error('Error processing dropped URL:', error);
       showToast('Error adding URL to playlist', 'error');
     }
   };
@@ -1382,7 +1444,8 @@ const AudioPlayer: React.FC = () => {
     if (!track) return null;
     return (
       <TableRow
-        key={track.id}
+        // Add playlist ID to make key unique
+        key={`playlist-${currentPlaylistId}-${track.id}-${index}`}
         sx={{
           backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
           '&:hover': { backgroundColor: 'action.hover' },
@@ -1426,15 +1489,48 @@ const AudioPlayer: React.FC = () => {
     );
   };
 
-  const getFavoritesPlaylist = (): Playlist => ({
-    id: 'favorites',
-    name: 'Favorites',
-    description: '',
-    tracks: playlist?.tracks || [],
-    isPublic: false,
-    type: 'system',    createdAt: Date.now(),
-    updatedAt: Date.now()
-  });
+  const getFavoritesPlaylist = async (): Promise<Playlist> => {
+    const favoriteTracks: Track[] = [];
+    
+    // Get all tracks from both queue and playlists
+    const allTracks = [
+      ...queueTracks,
+      ...playlists.flatMap(p => p.tracks || [])
+    ];
+
+    // Filter unique tracks by ID that are in favorites
+    for (const trackId of favorites) {
+      const track = allTracks.find(t => t.id === trackId);
+      if (track && !favoriteTracks.some(ft => ft.id === track.id)) {
+        favoriteTracks.push(track);
+      }
+    }
+
+    return {
+      id: 'favorites',
+      name: 'Favorites',
+      description: 'Your favorite tracks',
+      tracks: favoriteTracks,
+      isPublic: false,
+      type: 'system',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+  };
+
+  useEffect(() => {
+    const loadFavoritesPlaylist = async () => {
+      if (currentPlaylistId === 'favorites') {
+        const favoritesPlaylist = await getFavoritesPlaylist();
+        // Update the playlist state with the favorites
+        if (updatePlaylist) {
+          updatePlaylist(favoritesPlaylist);
+        }
+      }
+    };
+
+    loadFavoritesPlaylist();
+  }, [currentPlaylistId, favorites, queueTracks, playlists]);
 
   const renderPlaylistHeader = () => (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -1442,6 +1538,9 @@ const AudioPlayer: React.FC = () => {
         <Typography variant="h6">
           {currentPlaylistId === 'favorites' ? 'Favorites' : 
            playlists.find(p => p.id === currentPlaylistId)?.name || 'Playlist'}
+          {currentPlaylistId === 'favorites' && loading && (
+            <CircularProgress size={16} sx={{ ml: 1 }} />
+          )}
         </Typography>
         <IconButton 
           size="small" 
@@ -1463,9 +1562,9 @@ const AudioPlayer: React.FC = () => {
           </IconButton>
         )}
         <IconButton
-          onClick={() => {
+          onClick={async () => {
             const currentPlaylist = currentPlaylistId === 'favorites' ? 
-              getFavoritesPlaylist() : 
+              await getFavoritesPlaylist() :  // Await the promise
               playlists.find(p => p.id === currentPlaylistId);
             if (currentPlaylist) handleAddPlaylistToQueue(currentPlaylist);
           }}
@@ -1495,7 +1594,7 @@ const AudioPlayer: React.FC = () => {
       await loadPlaylists();
       setEditingPlaylistName(null);
     } catch (error) {
-      console.error('Error updating playlist name:', error);
+      logger.error('Error updating playlist name:', error);
       showToast('Failed to update playlist name', 'error');
     }
   };
@@ -1761,13 +1860,19 @@ const AudioPlayer: React.FC = () => {
   );
 
   const handleSaveQueue = async () => {
-    // Allow saving even without user for local storage
     if (!newPlaylistData.name || !queueTracks?.length) {
       showToast('Please enter a playlist name and ensure queue has tracks', 'error');
       return;
     }
     
     try {
+      // Check for duplicate names
+      const duplicateName = playlists.some(p => p.name === newPlaylistData.name);
+      if (duplicateName) {
+        showToast('A playlist with this name already exists', 'error');
+        return;
+      }
+
       const newPlaylist = {
         name: newPlaylistData.name,
         description: '',
@@ -1778,15 +1883,21 @@ const AudioPlayer: React.FC = () => {
         updatedAt: Date.now()
       };
 
+      let newPlaylistId: string;
+
       if (user) {
-        // Save to Firebase if user is logged in
-        const newPlaylistId = await playlistService.createPlaylist(user.uid, newPlaylist);
-        await loadPlaylists();
-        setCurrentPlaylistId(newPlaylistId);
+        newPlaylistId = await playlistService.createPlaylist(user.uid, newPlaylist);
       } else {
-        // Save to local storage if no user
+        newPlaylistId = Date.now().toString();
+        const playlistWithId = { ...newPlaylist, id: newPlaylistId };
         const localPlaylists = JSON.parse(localStorage.getItem('playlists') || '[]');
-        const playlistWithId = { ...newPlaylist, id: Date.now().toString() };
+        
+        // Check for duplicate names in local storage
+        if (localPlaylists.some((p: Playlist) => p.name === newPlaylistData.name)) {
+          showToast('A playlist with this name already exists', 'error');
+          return;
+        }
+        
         localPlaylists.push(playlistWithId);
         localStorage.setItem('playlists', JSON.stringify(localPlaylists));
         setPlaylists(localPlaylists);
@@ -1796,9 +1907,13 @@ const AudioPlayer: React.FC = () => {
       setNewPlaylistData(prev => ({ ...prev, name: '' }));
       showToast('Queue saved as playlist successfully', 'success');
       
+      // Switch to the newly created playlist
+      setCurrentPlaylistId(newPlaylistId);
+      await loadPlaylists();
+      
     } catch (error) {
-      console.error('Error saving queue:', error);
-      showToast('Error saving queue', 'error');
+      logger.error('Error saving queue:', error);
+      showToast(error.message || 'Error saving queue', 'error');
     }
   };
 
@@ -1845,7 +1960,7 @@ const AudioPlayer: React.FC = () => {
       setSliderValue(0);
       await handlePlayTrack(track);
     } catch (error) {
-      console.error('Error playing track:', error);
+      logger.error('Error playing track:', error);
       showToast('Error playing track', 'error');
       
       // If local file not found, try next track
@@ -1886,7 +2001,7 @@ const AudioPlayer: React.FC = () => {
         setFavorites(userData.favorites || []);
       }
     } catch (error) {
-      console.error('Error initializing favorites playlist:', error);
+      logger.error('Error initializing favorites playlist:', error);
     }
   };
 
@@ -1924,11 +2039,150 @@ const AudioPlayer: React.FC = () => {
         setCurrentPlaylistId('default');
         await loadPlaylists();
       } catch (error) {
-        console.error('Error deleting playlist:', error);
+        logger.error('Error deleting playlist:', error);
         showToast('Error deleting playlist', 'error');
       }
     }
   };
+
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          seek(-10);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          seek(10);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          handleVolumeChange({} as Event, Math.min(volume + 5, 100));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          handleVolumeChange({} as Event, Math.max(volume - 5, 0));
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [volume]);
+
+  const handleTrackEnd = () => {
+    switch (repeatMode) {
+      case 'one':
+        // Restart current track
+        if (youtubeRef.current?.internalPlayer) {
+          youtubeRef.current.internalPlayer.seekTo(0);
+          youtubeRef.current.internalPlayer.playVideo();
+        } else if (audioRef.current) {
+          audioRef.current.currentTime = 0;
+          audioRef.current.play();
+        }
+        break;
+      case 'all':
+        // Play next track or go back to start of queue
+        if (currentTrackIndex === queueTracks.length - 1) {
+          handleTrackSelection(0);
+        } else {
+          handleNextTrack();
+        }
+        break;
+      default:
+        // Stop if it's the last track, otherwise play next
+        if (currentTrackIndex === queueTracks.length - 1) {
+          setIsPlaying(false);
+        } else {
+          handleNextTrack();
+        }
+    }
+  };
+
+  const handleShuffleToggle = () => {
+    setIsShuffled(!isShuffled);
+    if (!isShuffled && queueTracks?.length > 0) {
+      // Shuffle the queue
+      const shuffledTracks = [...queueTracks].sort(() => Math.random() - 0.5);
+      const currentTrack = queueTracks[currentTrackIndex];
+      if (currentTrack) {
+        const newCurrentIndex = shuffledTracks.findIndex(t => t.id === currentTrack.id);
+        if (newCurrentIndex !== -1) {
+          [shuffledTracks[currentTrackIndex], shuffledTracks[newCurrentIndex]] = 
+          [shuffledTracks[newCurrentIndex], shuffledTracks[currentTrackIndex]];
+        }
+        setQueueTracks(shuffledTracks);
+      }
+    } else {
+      // Restore original order
+      loadQueueTracks().then(tracks => {
+        if (tracks?.length > 0) {
+          setQueueTracks(tracks);
+        }
+      });
+    }
+  };
+
+  // Optimize scroll event handler
+  const handleScroll = useCallback(debounce((e: Event) => {
+    // scroll handling logic
+  }, 100), []);
+
+  // Add passive event listeners
+  useEffect(() => {
+    const options = { passive: true };
+    window.addEventListener('scroll', handleScroll, options);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  // Optimize table rendering with virtualization
+  const renderVirtualizedList = ({ index, style }: any) => {
+    const track = queueTracks[index];
+    return (
+      <div style={style}>
+        {renderQueueTrackRow(track, index)}
+      </div>
+    );
+  };
+
+  // Update table container to use virtualization
+  const renderQueueList = () => (
+    <List
+      height={275}
+      itemCount={queueTracks.length}
+      itemSize={36}
+      width="100%"
+    >
+      {renderVirtualizedList}
+    </List>
+  );
+
+  if (isMinimized) {
+    return (
+      <MiniPlayer
+        track={currentTrack}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        onPlayPause={handlePlayPause}
+        onMaximize={() => setIsMinimized(false)}
+        onSeek={(value) => {
+          setCurrentTime(value);
+          if (audioRef.current) {
+            audioRef.current.currentTime = value;
+          }
+        }}
+      />
+    );
+  }
 
   return (
     <Box sx={{ p: 2 }}>

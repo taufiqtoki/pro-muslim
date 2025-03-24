@@ -1,5 +1,5 @@
 import { db } from '../firebase.ts';
-import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, getDocs, deleteDoc, addDoc } from 'firebase/firestore';
 import { Track, Playlist, UserPlaylists, YouTubePlaylist } from '../types/playlist.ts';
 import { parseDuration } from '../utils/youtube.ts';
 import axios from 'axios';
@@ -20,23 +20,67 @@ const fetchPlaylistTracks = async (playlistId: string): Promise<Track[]> => {
 export const playlistService = {
   // Create a new playlist
   async createPlaylist(userId: string, playlist: Omit<Playlist, 'id'>): Promise<string> {
-    const playlistRef = doc(collection(db, `users/${userId}/playlists`));
+    const playlistsRef = collection(db, `users/${userId}/playlists`);
+    
+    // Validate playlist name first
+    if (!playlist.name || playlist.name.trim().length === 0) {
+      throw new Error('Playlist name cannot be empty');
+    }
+
+    // Check for duplicate names
+    const existingPlaylists = await getDocs(playlistsRef);
+    if (existingPlaylists.docs.some(doc => doc.data().name === playlist.name)) {
+      throw new Error('A playlist with this name already exists');
+    }
+
+    // Generate a more predictable ID format
+    const timestamp = Date.now();
+    const newPlaylistId = `playlist_${timestamp}`;
+    const playlistRef = doc(playlistsRef, newPlaylistId);
+
     await setDoc(playlistRef, {
       ...playlist,
-      id: playlistRef.id,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      id: newPlaylistId,
+      createdAt: timestamp,
+      updatedAt: timestamp
     });
-    return playlistRef.id;
+
+    return newPlaylistId;
   },
 
   // Add track to playlist
   async addTrackToPlaylist(userId: string, playlistId: string, track: Track): Promise<void> {
     const playlistRef = doc(db, `users/${userId}/playlists/${playlistId}`);
-    await updateDoc(playlistRef, {
-      tracks: arrayUnion(track),
-      updatedAt: Date.now()
-    });
+    
+    try {
+      // First check if the playlist exists
+      const playlistDoc = await getDoc(playlistRef);
+      
+      if (!playlistDoc.exists()) {
+        // Create the playlist if it doesn't exist
+        const newPlaylist: Playlist = {
+          id: playlistId,
+          name: playlistId === 'queue' ? 'Queue' : 'New Playlist',
+          description: '',
+          tracks: [track],
+          isPublic: false,
+          type: playlistId === 'queue' ? 'queue' : 'custom',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        
+        await setDoc(playlistRef, newPlaylist);
+      } else {
+        // Update existing playlist
+        await updateDoc(playlistRef, {
+          tracks: arrayUnion(track),
+          updatedAt: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('Error in addTrackToPlaylist:', error);
+      throw error;
+    }
   },
 
   // Remove track from playlist
@@ -121,10 +165,29 @@ export const playlistService = {
   // Update entire playlist in Firestore
   async updatePlaylist(userId: string, playlistId: string, playlist: Playlist): Promise<void> {
     const playlistRef = doc(db, `users/${userId}/playlists/${playlistId}`);
-    await updateDoc(playlistRef, {
-      ...playlist,
-      updatedAt: Date.now(),
-    });
+    
+    try {
+      const docSnap = await getDoc(playlistRef);
+      
+      if (!docSnap.exists()) {
+        // Create the document if it doesn't exist
+        await setDoc(playlistRef, {
+          ...playlist,
+          id: playlistId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      } else {
+        // Update existing document
+        await updateDoc(playlistRef, {
+          ...playlist,
+          updatedAt: Date.now(),
+        });
+      }
+    } catch (error) {
+      console.error('Error updating playlist:', error);
+      throw error;
+    }
   },
 
   // Update a track within a playlist in Firestore
@@ -381,11 +444,13 @@ export const playlistService = {
   },
 
   async addToQueue(userId: string, track: Track): Promise<void> {
-    await this.addTrackToPlaylist(userId, 'queue', track);
+    const queue = await this.getOrCreateQueue(userId);
+    const updatedTracks = [...queue.tracks, track];
+    await this.saveQueue(userId, updatedTracks);
   },
 
   async clearQueue(userId: string): Promise<void> {
-    await this.updateQueue(userId, []);
+    await this.saveQueue(userId, []);
   },
 
   // Move track to specific position in playlist
@@ -421,37 +486,244 @@ export const playlistService = {
 
   // Add this new method
   async deletePlaylist(userId: string, playlistId: string): Promise<void> {
-    try {
-      // Don't allow deletion of special playlists
-      const protectedPlaylists = ['queue', 'favorites', 'default'];
-      if (protectedPlaylists.includes(playlistId)) {
-        throw new Error('Cannot delete this playlist');
-      }
+    if (!userId || !playlistId) return;
 
+    // Don't allow deletion of system playlists
+    if (['favorites', 'default'].includes(playlistId)) {
+      throw new Error('Cannot delete system playlist');
+    }
+
+    try {
+      // Delete from Firestore
       const playlistRef = doc(db, `users/${userId}/playlists/${playlistId}`);
       await deleteDoc(playlistRef);
+      
+      // Clean up any related data (like tracks)
+      const userRef = doc(db, `users/${userId}`);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Remove any favorites that were in this playlist
+        if (userData.favorites) {
+          const playlistDoc = await getDoc(playlistRef);
+          if (playlistDoc.exists()) {
+            const playlistData = playlistDoc.data();
+            const trackIds = playlistData.tracks.map((t: Track) => t.id);
+            const newFavorites = userData.favorites.filter((id: string) => !trackIds.includes(id));
+            await updateDoc(userRef, { favorites: newFavorites });
+          }
+        }
+      }
+
+      // Clean up local storage
+      const localPlaylists = JSON.parse(localStorage.getItem('playlists') || '[]');
+      const filteredPlaylists = localPlaylists.filter((p: Playlist) => p.id !== playlistId);
+      localStorage.setItem('playlists', JSON.stringify(filteredPlaylists));
+
     } catch (error) {
       console.error('Error deleting playlist:', error);
       throw error;
     }
   },
 
+  async cleanupMalformedPlaylists(userId: string): Promise<void> {
+    if (!userId) return;
+
+    try {
+      const playlistsRef = collection(db, `users/${userId}/playlists`);
+      const snapshot = await getDocs(playlistsRef);
+      
+      const batch = writeBatch(db);
+      
+      snapshot.docs.forEach(doc => {
+        const playlistId = doc.id;
+        // Delete playlists with malformed IDs (like the one you mentioned)
+        if (!playlistId.startsWith('playlist_') && 
+            !['favorites', 'default'].includes(playlistId)) {
+          batch.delete(doc.ref);
+        }
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error cleaning up playlists:', error);
+    }
+  },
+
   // Add this new method for queue management
   async getQueueTracks(userId: string): Promise<Track[]> {
-    const queueRef = doc(db, `users/${userId}/queue/current`);
-    const queueDoc = await getDoc(queueRef);
-    return queueDoc.exists() ? queueDoc.data().tracks : [];
+    try {
+      const queueRef = doc(db, `users/${userId}/playlists/queue`);
+      const queueDoc = await getDoc(queueRef);
+      
+      if (!queueDoc.exists()) {
+        // Initialize empty queue if it doesn't exist
+        const emptyQueue = {
+          id: 'queue',
+          name: 'Queue',
+          description: 'Current playing queue',
+          tracks: [],
+          isPublic: false,
+          type: 'queue',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        await setDoc(queueRef, emptyQueue);
+        return [];
+      }
+      
+      return queueDoc.data().tracks || [];
+    } catch (error) {
+      console.error('Error getting queue tracks:', error);
+      return [];
+    }
   },
 
   async updateQueue(userId: string, tracks: Track[]): Promise<void> {
-    const queueRef = doc(db, `users/${userId}/queue/current`);
-    await setDoc(queueRef, { tracks, updatedAt: Date.now() });
+    if (!userId) return;
+    
+    const queueRef = doc(db, `users/${userId}/playlists/queue`);
+    
+    try {
+      // Always use setDoc to either create or update the queue
+      await setDoc(queueRef, {
+        id: 'queue',
+        name: 'Queue',
+        description: 'Current playing queue',
+        tracks,
+        isPublic: false,
+        type: 'queue',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Error updating queue:', error);
+      throw error;
+    }
   },
 
   async removeFromQueue(userId: string, trackId: string): Promise<void> {
-    const tracks = await this.getQueueTracks(userId);
-    const filteredTracks = tracks.filter(t => t.id !== trackId);
-    await this.updateQueue(userId, filteredTracks);
+    const queue = await this.getOrCreateQueue(userId);
+    const updatedTracks = queue.tracks.filter(t => t.id !== trackId);
+    await this.saveQueue(userId, updatedTracks);
+  },
+
+  async initializeUserPlaylists(userId: string): Promise<void> {
+    if (!userId) return;
+
+    const batch = writeBatch(db);
+    const playlistsToInit = [
+      {
+        id: 'queue',
+        name: 'Queue',
+        description: 'Current playing queue',
+        tracks: [],
+        isPublic: false,
+        type: 'queue'
+      },
+      {
+        id: 'favorites',
+        name: 'Favorites',
+        description: 'Your favorite tracks',
+        tracks: [],
+        isPublic: false,
+        type: 'system'
+      },
+      {
+        id: 'default',
+        name: 'Default Playlist',
+        description: 'Default playlist',
+        tracks: [],
+        isPublic: false,
+        type: 'system'
+      }
+    ];
+
+    try {
+      for (const playlist of playlistsToInit) {
+        const ref = doc(db, `users/${userId}/playlists/${playlist.id}`);
+        const docSnap = await getDoc(ref);
+        
+        if (!docSnap.exists()) {
+          batch.set(ref, {
+            ...playlist,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+        }
+      }
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error initializing user playlists:', error);
+      throw error;
+    }
+  },
+
+  async getOrCreateQueue(userId: string): Promise<Playlist> {
+    if (!userId) throw new Error('User ID is required');
+
+    const queueRef = doc(db, `users/${userId}/playlists/queue`);
+    
+    try {
+      const queueDoc = await getDoc(queueRef);
+      
+      if (queueDoc.exists()) {
+        return queueDoc.data() as Playlist;
+      }
+
+      // Create new queue if it doesn't exist
+      const newQueue: Playlist = {
+        id: 'queue',
+        name: 'Queue',
+        description: 'Current playing queue',
+        tracks: [],
+        isPublic: false,
+        type: 'queue',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      await setDoc(queueRef, newQueue);
+      return newQueue;
+    } catch (error) {
+      console.error('Error in getOrCreateQueue:', error);
+      throw error;
+    }
+  },
+
+  async saveQueue(userId: string, tracks: Track[]): Promise<void> {
+    if (!userId) throw new Error('User ID is required');
+
+    const queueRef = doc(db, `users/${userId}/playlists/queue`);
+    
+    try {
+      const queueDoc = await getDoc(queueRef);
+      
+      if (!queueDoc.exists()) {
+        // Create queue with tracks if it doesn't exist
+        await setDoc(queueRef, {
+          id: 'queue',
+          name: 'Queue',
+          description: 'Current playing queue',
+          tracks,
+          isPublic: false,
+          type: 'queue',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+      } else {
+        // Update existing queue
+        await updateDoc(queueRef, {
+          tracks,
+          updatedAt: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('Error saving queue:', error);
+      throw error;
+    }
   },
 
   fetchPlaylistTracks,

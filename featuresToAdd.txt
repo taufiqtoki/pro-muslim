@@ -25,3 +25,5 @@ PlaybackControls are in 1 line
 second jumpers are in 1 line in middle of second jumper make play button slightly bigger
 both lines should fit in phones portrait mode width also, remove extra spacing and use variable font size for responsiveness
 
+bedtime should be variable by bedtime in daily routine, and add logic when its bedtime-
+ show how much is over bedtime.

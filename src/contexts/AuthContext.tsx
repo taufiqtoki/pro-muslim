@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut as firebaseSignOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { playlistService } from '../services/playlistService.ts';  // Add this import
 
 interface AuthContextType {
   user: User | null;
@@ -36,12 +37,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setLoading(true);
+      try {
+        if (user) {
+          // Initialize user playlists when user logs in
+          await playlistService.initializeUserPlaylists(user.uid);
+        }
+        setUser(user);
+      } catch (error) {
+        console.error('Error in auth state change:', error);
+      } finally {
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
   return (

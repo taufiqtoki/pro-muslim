@@ -5,10 +5,21 @@ import { Track, Playlist } from '../types/playlist.ts';
 import { db } from '../firebase.ts';
 import { doc, getDoc } from 'firebase/firestore';
 
-export const usePlaylist = (playlistId: string) => {
+export interface UsePlaylistReturn {
+  playlist: Playlist | null;
+  loading: boolean;
+  error: Error | null;
+  addTrack: (track: Track) => Promise<void>;
+  removeTrack: (trackId: string) => Promise<void>;
+  updateTrack: (trackId: string, updates: Partial<Track>) => Promise<void>;
+  refreshPlaylist: () => Promise<void>;
+  updatePlaylist: (playlist: Playlist) => void;
+}
+
+export const usePlaylist = (playlistId: string): UsePlaylistReturn => {
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const { user } = useAuth();
 
   const loadPlaylist = useCallback(async () => {
@@ -53,19 +64,65 @@ export const usePlaylist = (playlistId: string) => {
       }
     } catch (err) {
       console.error('Error loading playlist:', err);
-      setError('Error loading playlist');
+      setError(new Error('Error loading playlist'));
     } finally {
       setLoading(false);
     }
   }, [user, playlistId]);
 
-  const refreshPlaylist = () => {
-    loadPlaylist();
-  };
+  const updateTrack = useCallback(async (trackId: string, updates: Partial<Track>) => {
+    if (!playlist) return;
+    
+    try {
+      const trackIndex = playlist.tracks.findIndex(t => t.id === trackId);
+      if (trackIndex === -1) throw new Error('Track not found');
+
+      const updatedTracks = [...playlist.tracks];
+      updatedTracks[trackIndex] = { ...updatedTracks[trackIndex], ...updates };
+
+      const updatedPlaylist = {
+        ...playlist,
+        tracks: updatedTracks,
+        updatedAt: Date.now()
+      };
+
+      if (user) {
+        await playlistService.updatePlaylist(user.uid, playlistId, updatedPlaylist);
+      } else {
+        localStorage.setItem(`playlist_${playlistId}`, JSON.stringify(updatedPlaylist));
+      }
+
+      setPlaylist(updatedPlaylist);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to update track'));
+      throw err;
+    }
+  }, [playlist, user, playlistId]);
+
+  const refreshPlaylist = useCallback(async () => {
+    try {
+      await loadPlaylist();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to refresh playlist'));
+      throw err;
+    }
+  }, [loadPlaylist]);
 
   useEffect(() => {
     loadPlaylist();
   }, [user, playlistId]);
+
+  useEffect(() => {
+    const initializePlaylist = async () => {
+      if (user) {
+        // Clean up malformed playlists when component mounts
+        await playlistService.cleanupMalformedPlaylists(user.uid);
+        loadPlaylist();
+      }
+    };
+
+    initializePlaylist();
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -169,54 +226,18 @@ export const usePlaylist = (playlistId: string) => {
     }
   };
 
+  const updatePlaylist = useCallback((newPlaylist: Playlist) => {
+    setPlaylist(newPlaylist);
+  }, []);
+
   return {
     playlist,
     loading,
     error,
     addTrack,
-    createPlaylist,
-    addYouTubePlaylist: async (youtubePlaylistId: string) => {
-      if (!user) {
-        throw new Error('User must be logged in to import YouTube playlists');
-      }
-
-      try {
-        const playlistDetails = await playlistService.fetchYouTubePlaylistDetails(youtubePlaylistId);
-        const tracks = await playlistService.fetchYouTubePlaylistTracks(youtubePlaylistId);
-        
-        const newPlaylist: Playlist = {
-          id: `youtube_${youtubePlaylistId}`,
-          name: playlistDetails.title,
-          description: playlistDetails.description,
-          tracks,
-          isPublic: false,
-          type: 'youtube',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          source: {
-            youtubePlaylistId,
-            url: `https://www.youtube.com/playlist?list=${youtubePlaylistId}`
-          }
-        };
-
-        await playlistService.createPlaylist(user.uid, newPlaylist);
-        setPlaylist(newPlaylist);
-        return newPlaylist.id;
-      } catch (error) {
-        console.error('Error importing YouTube playlist:', error);
-        throw error;
-      }
-    },
     removeTrack,
-    updateTrack: async (trackId: string, updates: Partial<Track>) => {
-      if (!user) return;
-      await playlistService.updateTrackInPlaylist(user.uid, playlistId || 'default', trackId, updates);
-      setPlaylist(prev => 
-        prev
-          ? { ...prev, tracks: prev.tracks.map(t => t.id === trackId ? { ...t, ...updates } : t) }
-          : null
-      );
-    },
-    refreshPlaylist
+    updateTrack,
+    refreshPlaylist,
+    updatePlaylist
   };
 };

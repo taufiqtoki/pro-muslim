@@ -97,7 +97,7 @@ const Stopwatch: React.FC = () => {
             <TimerIcon />
           </IconButton>
           <IconButton
-            onClick={() => navigate('/audio-player')}
+            onClick={() => navigate('/player')}
             color="default"
             size="small"
           >
