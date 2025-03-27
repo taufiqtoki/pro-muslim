@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Track } from '../types/playlist';
+import { Track } from '../types/playlist.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 import { playlistService } from '../services/playlistService.ts';
+import { userService } from '../services/userService.ts';
 
 interface QueueContextType {
   queueTracks: Track[];
@@ -36,6 +37,32 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return [];
     }
   };
+
+  // Load queue from Firestore when user logs in
+  useEffect(() => {
+    const loadQueue = async () => {
+      if (user) {
+        try {
+          // Get queue IDs from user document
+          const queueIds = await userService.getQueue(user.uid);
+          // Convert IDs to Track objects
+          const tracks = await playlistService.getTracksByIds(user.uid, queueIds);
+          setQueueTracks(tracks);
+        } catch (error) {
+          console.error('Error loading queue:', error);
+        }
+      }
+    };
+    loadQueue();
+  }, [user]);
+
+  // Sync queue to Firestore whenever it changes
+  useEffect(() => {
+    if (user) {
+      userService.syncQueue(user.uid, queueTracks)
+        .catch(error => console.error('Error syncing queue:', error));
+    }
+  }, [queueTracks, user]);
 
   // Initialize queue when component mounts or user changes
   useEffect(() => {

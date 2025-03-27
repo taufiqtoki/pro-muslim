@@ -727,6 +727,38 @@ export const playlistService = {
   },
 
   fetchPlaylistTracks,
+
+  // Fix: Change get() to getDoc()
+  loadQueue: async (userId: string): Promise<Track[]> => {
+    const userRef = doc(db, `users/${userId}`);
+    const userDoc = await getDoc(userRef); // Changed from get() to getDoc()
+    return userDoc.exists() ? (userDoc.data()?.queue || []) : [];
+  },
+
+  defaultPlaylist: {
+    id: 'default',
+    name: 'Default Playlist',
+    description: '',
+    tracks: [],
+    isPublic: false,
+    type: 'system' as const,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  },
+
+  // Add this method to playlistService
+  async getTracksByIds(userId: string, trackIds: string[]): Promise<Track[]> {
+    if (!trackIds.length) return [];
+    
+    try {
+      const playlists = await this.getUserPlaylists(userId);
+      const allTracks = playlists.flatMap(p => p.tracks || []);
+      return trackIds.map(id => allTracks.find(t => t.id === id)).filter(Boolean) as Track[];
+    } catch (error) {
+      console.error('Error getting tracks by IDs:', error);
+      return [];
+    }
+  },
 };
 
 // Add this method if it doesn't exist

@@ -1830,7 +1830,7 @@ const AudioPlayer: React.FC = () => {
         <FavoriteIcon sx={{ mr: 1 }} /> Favorites
       </MenuItem>
       {playlists
-        .filter(playlist => playlist.id !== 'favorites') // Filter out favorites from regular playlists
+        .filter(playlist => !['favorites', 'queue'].includes(playlist.id)) // Added 'queue' to exclusion list
         .map((playlist) => (
           <MenuItem
             key={playlist.id}

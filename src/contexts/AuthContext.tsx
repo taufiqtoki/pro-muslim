@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut as firebaseSignOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { playlistService } from '../services/playlistService.ts';  // Add this import
+import { userService } from '../services/userService.ts';
 
 interface AuthContextType {
   user: User | null;
@@ -43,6 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (user) {
           // Initialize user playlists when user logs in
           await playlistService.initializeUserPlaylists(user.uid);
+          // Initialize user document when user signs in
+          await userService.initializeUserDocument(user.uid);
         }
         setUser(user);
       } catch (error) {
