@@ -2,17 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, 
   TableRow, IconButton, Checkbox, TextField, Dialog, DialogTitle,
-  DialogContent, DialogActions, Button, Typography
+  DialogContent, DialogActions, Button, Typography, List, ListItem
 } from '@mui/material';
 import DragHandleIcon from '@mui/icons-material/DragHandle';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase.ts';
 import { useAuth } from '../../hooks/useAuth.ts';
 import { AutosuggestInput } from '../../components/AutosuggestInput.tsx';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import ReusableTable from '../../components/ReusableTable.tsx';
+import { useDragDrop } from '../../hooks/useDragDrop.ts';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface BucketItem {
   id: string;
@@ -141,52 +144,88 @@ const BucketTab: React.FC = () => {
     }));
   };
 
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(fromIndex, 1);
+    newItems.splice(toIndex, 0, movedItem);
+    setItems(newItems);
+  };
+
+  const renderItem = (item: BucketItem, index: number) => {
+    const { isDragging, dragRef } = useDragDrop<HTMLDivElement>(
+      `bucket-${item.id}`, 
+      index, 
+      moveItem,
+      'bucket-item'
+    );
+
+    return (
+      <ListItem
+        ref={dragRef}
+        key={item.id}
+        component="div"
+        sx={{
+          opacity: isDragging ? 0.5 : 1,
+          cursor: 'move',
+          display: 'flex',
+          alignItems: 'center',
+          padding: 1,
+          borderBottom: '1px solid',
+          borderColor: 'divider'
+        }}
+      >
+        <DragIndicatorIcon sx={{ mr: 1, cursor: 'grab' }} />
+        <Typography>{item.description}</Typography> {/* Fixed property name */}
+        <IconButton onClick={() => handleDelete(item.id)}>
+          <DeleteIcon />
+        </IconButton>
+      </ListItem>
+    );
+  };
+
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5">Bucket List</Typography>
-      <Paper sx={{ mb: 2, p: 2 }}>
-        <AutosuggestInput
-          suggestions={suggestions}
-          value={inputValue}
-          onChange={setInputValue}
-          onSubmit={(value) => {
-            handleAddItem(value);
-            setInputValue('');
-          }}
-          placeholder="Add new bucket list item..."
-          label="New Bucket List Item"
-        />
-      </Paper>
-
-      <ReusableTable
-        items={items}
-        onToggle={handleToggle}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onDragEnd={handleDragEnd}
-        setEditItem={setEditItem}
-      />
-
-      <Dialog open={!!editItem} onClose={() => setEditItem(null)}>
-        <DialogTitle>Edit Bucket Item</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Description"
-            fullWidth
-            value={editItem?.description || ''}
-            onChange={(e) => setEditItem(prev => prev ? {...prev, description: e.target.value} : null)}
+    <DndProvider backend={HTML5Backend}>
+      <Box sx={{ p: 2 }}>
+        <Typography variant="h5">Bucket List</Typography>
+        <Paper sx={{ mb: 2, p: 2 }}>
+          <AutosuggestInput
+            suggestions={suggestions}
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={(value) => {
+              handleAddItem(value);
+              setInputValue('');
+            }}
+            placeholder="Add new bucket list item..."
+            label="New Bucket List Item"
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditItem(null)}>Cancel</Button>
-          <Button onClick={() => editItem && handleEdit(editItem)} color="primary">
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        </Paper>
+
+        <List>
+          {items.map((item, index) => renderItem(item, index))}
+        </List>
+
+        <Dialog open={!!editItem} onClose={() => setEditItem(null)}>
+          <DialogTitle>Edit Bucket Item</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Description"
+              fullWidth
+              value={editItem?.description || ''}
+              onChange={(e) => setEditItem(prev => prev ? {...prev, description: e.target.value} : null)}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditItem(null)}>Cancel</Button>
+            <Button onClick={() => editItem && handleEdit(editItem)} color="primary">
+              Save
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </DndProvider>
   );
 };
 

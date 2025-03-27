@@ -5,7 +5,6 @@ import PrayerTimesWidget from '../../components/prayer/PrayerTimesWidget.tsx';
 import ClockWidget from '../../components/ClockWidget.tsx';
 import SleepTracker from '../../components/tracking/SleepTracker.tsx';
 import TasbeehTracker from '../../components/TasbeehTracker.tsx';
-import MiniPlayer from '../../components/MiniPlayer.tsx';
 import { useTasbeehs } from '../../hooks/useTasbeehs.ts';
 import { useAuth } from '../../hooks/useAuth.ts';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
@@ -51,9 +50,6 @@ const HomeTab: React.FC = () => {
       <Container maxWidth="lg" sx={{ mx: 'auto' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <ClockWidget />
-          <Box sx={{ width: '100%' }}>
-            <MiniPlayer /> {/* Always show MiniPlayer, no conditions */}
-          </Box>
           <PrayerTimesWidget />
           <Grid container spacing={2}>
             <Grid item xs={12}>

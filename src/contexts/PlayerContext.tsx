@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useRef, useEffect, MutableRefObject } from 'react';
 import { Track } from '../types/playlist.ts';
+import { RepeatMode } from '../types/player.ts';
 
-export type RepeatMode = 'none' | 'all' | 'one';
-
-interface PlayerContextType {
+export interface PlayerContextType {
   isPlaying: boolean;
   currentTrack: Track | null;
   currentTime: number;
@@ -28,7 +27,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>('none');
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(RepeatMode.NONE);
   const audioRef = useRef<HTMLAudioElement>(null);
   const youtubeRef = useRef<any>(null);
 

@@ -11,7 +11,7 @@ import Replay30Icon from '@mui/icons-material/Replay30';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import RepeatOneIcon from '@mui/icons-material/RepeatOne';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
-import { RepeatMode } from '../../types/player';
+import { RepeatMode } from '../../types/player.ts';
 
 interface PlaybackControlsProps {
   isPlaying: boolean;
@@ -21,8 +21,8 @@ interface PlaybackControlsProps {
   onSeek: (seconds: number) => void;
   repeatMode: RepeatMode;
   onRepeatModeChange: (mode: RepeatMode) => void;
-  isShuffled: boolean;               // Add this line
-  onShuffleToggle: () => void;      // Add this line
+  isShuffled: boolean;
+  onShuffleToggle: () => void;
 }
 
 const PlaybackControls: React.FC<PlaybackControlsProps> = ({
@@ -33,20 +33,23 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   onSeek,
   repeatMode,
   onRepeatModeChange,
-  isShuffled,         // Add this
-  onShuffleToggle,    // Add this
+  isShuffled,
+  onShuffleToggle,
 }) => {
   const getNextRepeatMode = (current: RepeatMode): RepeatMode => {
-    const modes: RepeatMode[] = ['none', 'all', 'one'];
+    const modes = [RepeatMode.NONE, RepeatMode.ALL, RepeatMode.ONE];
     const currentIndex = modes.indexOf(current);
     return modes[(currentIndex + 1) % modes.length];
   };
 
-  const getRepeatIcon = () => {
-    switch (repeatMode) {
-      case 'one': return <RepeatOneIcon />;
-      case 'all': return <RepeatIcon color="primary" />;
-      default: return <RepeatIcon />;
+  const getRepeatIcon = (mode: RepeatMode) => {
+    switch (mode) {
+      case RepeatMode.ONE:
+        return <RepeatOneIcon />;
+      case RepeatMode.ALL:
+        return <RepeatIcon color="primary" />;
+      default:
+        return <RepeatIcon />;
     }
   };
 
@@ -88,7 +91,16 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       </IconButton>
       <Tooltip title={`Repeat: ${repeatMode}`}>
         <IconButton onClick={() => onRepeatModeChange(getNextRepeatMode(repeatMode))}>
-          {getRepeatIcon()}
+          {getRepeatIcon(repeatMode)}
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={`Shuffle: ${isShuffled ? 'On' : 'Off'}`}>
+        <IconButton 
+          onClick={onShuffleToggle}
+          color={isShuffled ? 'primary' : 'default'}
+          size="small"
+        >
+          <ShuffleIcon />
         </IconButton>
       </Tooltip>
     </Box>

@@ -1,7 +1,11 @@
 import React from 'react';
-import { Track } from './playlist';
+import { Track } from './playlist.ts';
 
-export type RepeatMode = 'none' | 'all' | 'one';
+export enum RepeatMode {
+  NONE = 'NONE',
+  ALL = 'ALL',
+  ONE = 'ONE'
+}
 
 export interface MediaHandlers {
   handleTrackEnd: () => void;
@@ -22,4 +26,11 @@ export interface TableHandlers {
   renderPlaylistDropdown: () => React.ReactElement;
   renderNewPlaylistDialog: () => React.ReactElement;
   renderYoutubePlaylistDialog: () => React.ReactElement;
+}
+
+export interface PlayerState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  repeatMode: RepeatMode;
 }

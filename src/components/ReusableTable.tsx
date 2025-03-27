@@ -1,93 +1,92 @@
 import React from 'react';
-import { 
-  Table, TableBody, TableCell, TableContainer, TableHead, 
-  TableRow, Paper, Checkbox, IconButton 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
-import DragHandleIcon from '@mui/icons-material/DragHandle';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useDragDrop } from '../hooks/useDragDrop';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
-interface ReusableTableProps {
-  items: any[];
-  onToggle: (id: string) => void;
-  onEdit: (item: any) => void;
-  onDelete: (id: string) => void;
-  onDragEnd: (result: any) => void;
-  setEditItem: (item: any | null) => void;
+interface Column {
+  id: string;
+  label: string;
+  minWidth?: number;
+  align?: 'right' | 'left' | 'center';
 }
 
-const ReusableTable: React.FC<ReusableTableProps> = ({ items, onToggle, onEdit, onDelete, onDragEnd, setEditItem }) => {
-  return (
+interface ReusableTableProps {
+  columns: Column[];
+  rows: any[];
+  onReorder?: (fromIndex: number, toIndex: number) => void;
+  isDraggable?: boolean;
+}
+
+const ReusableTable: React.FC<ReusableTableProps> = ({
+  columns,
+  rows,
+  onReorder,
+  isDraggable = false
+}) => {
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    if (onReorder) {
+      onReorder(fromIndex, toIndex);
+    }
+  };
+
+  const tableContent = (
     <TableContainer component={Paper}>
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell width={40}></TableCell>
-              <TableCell width={40}>#</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell width={80}>Status</TableCell>
-              <TableCell width={100}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <Droppable droppableId="reusable-table">
-            {(provided) => (
-              <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                {items.map((item, index) => (
-                  <Draggable key={item.id} draggableId={item.id} index={index}>
-                    {(provided, snapshot) => (
-                      <TableRow
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        sx={{
-                          height: 40,
-                          background: snapshot.isDragging ? '#f5f5f5' : 'inherit',
-                          '& td': {
-                            textDecoration: item.completed ? 'line-through' : 'none',
-                            color: item.completed ? 'text.disabled' : 'inherit'
-                          }
-                        }}
-                      >
-                        <TableCell {...provided.dragHandleProps}>
-                          <DragHandleIcon />
-                        </TableCell>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{item.description}</TableCell>
-                        <TableCell>
-                          <Checkbox
-                            checked={item.completed}
-                            onChange={() => onToggle(item.id)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => setEditItem(item)}
-                            disabled={item.completed}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => onDelete(item.id)}
-                            color="error"
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Draggable>
+      <Table stickyHeader>
+        <TableHead>
+          <TableRow>
+            {columns.map((column) => (
+              <TableCell
+                key={column.id}
+                align={column.align}
+                style={{ minWidth: column.minWidth }}
+              >
+                {column.label}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.map((row, index) => {
+            const { isDragging, dragRef } = isDraggable 
+              ? useDragDrop(`row-${index}`, index, moveItem)
+              : { isDragging: false, dragRef: null };
+
+            return (
+              <TableRow
+                ref={dragRef}
+                key={index}
+                sx={{
+                  opacity: isDragging ? 0.5 : 1,
+                  cursor: isDraggable ? 'move' : 'default'
+                }}
+              >
+                {columns.map((column) => (
+                  <TableCell key={column.id} align={column.align}>
+                    {row[column.id]}
+                  </TableCell>
                 ))}
-                {provided.placeholder}
-              </TableBody>
-            )}
-          </Droppable>
-        </Table>
-      </DragDropContext>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </TableContainer>
   );
+
+  return isDraggable ? (
+    <DndProvider backend={HTML5Backend}>
+      {tableContent}
+    </DndProvider>
+  ) : tableContent;
 };
 
 export default ReusableTable;

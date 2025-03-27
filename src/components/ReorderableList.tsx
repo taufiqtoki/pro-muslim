@@ -1,93 +1,61 @@
 import React from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { List, ListItem, IconButton, Stack, Paper, Button, CircularProgress } from '@mui/material';
-import DragHandleIcon from '@mui/icons-material/DragHandle';
-import CloseIcon from '@mui/icons-material/Close';
-import SaveIcon from '@mui/icons-material/Save';
+import { List, ListItem, Box, Button } from '@mui/material';
+import { useDragDrop } from '../hooks/useDragDrop.ts';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
-interface Orderable {
-  id: string;
-  order: number;
-}
-
-interface ReorderableListProps<T extends Orderable> {
+interface ReorderableListProps<T> {
   items: T[];
-  onReorder: (items: T[]) => void;
-  onSave: () => Promise<void>;
-  onCancel: () => void;
+  renderItem: (item: T, index: number) => React.ReactNode;
+  onReorder: (startIndex: number, endIndex: number) => void;
+  onSave?: () => Promise<void>;
+  onCancel?: () => void;
   hasChanges?: boolean;
   isSaving?: boolean;
-  renderItem: (item: T) => React.ReactNode;
 }
 
-export function ReorderableList<T extends Orderable>({
-  items,
+export const ReorderableList = <T,>({ 
+  items, 
+  renderItem, 
   onReorder,
   onSave,
   onCancel,
-  hasChanges = false,
-  isSaving = false,
-  renderItem
-}: ReorderableListProps<T>) {
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    
-    const newItems = Array.from(items);
-    const [reorderedItem] = newItems.splice(result.source.index, 1);
-    newItems.splice(result.destination.index, 0, reorderedItem);
-    
-    onReorder(newItems);
-  };
-
+  hasChanges,
+  isSaving 
+}: ReorderableListProps<T>) => {
   return (
-    <Paper sx={{ m: 2, p: 2 }}>
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="reorderable-list">
-          {(provided) => (
-            <List {...provided.droppableProps} ref={provided.innerRef}>
-              {items.map((item, index) => (
-                <Draggable key={item.id} draggableId={item.id} index={index}>
-                  {(provided, snapshot) => (
-                    <ListItem
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      sx={{
-                        border: '1px solid #eee',
-                        mb: 1,
-                        borderRadius: 1,
-                        background: snapshot.isDragging ? '#f5f5f5' : 'white'
-                      }}
-                    >
-                      {renderItem(item)}
-                      <IconButton {...provided.dragHandleProps}>
-                        <DragHandleIcon />
-                      </IconButton>
-                    </ListItem>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </List>
-          )}
-        </Droppable>
-      </DragDropContext>
-      
-      {hasChanges && (
-        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 2 }}>
-          <IconButton onClick={onCancel} color="error" disabled={isSaving}>
-            <CloseIcon />
-          </IconButton>
-          <Button
-            onClick={onSave}
-            disabled={isSaving}
-            startIcon={isSaving ? <CircularProgress size={20} /> : <SaveIcon />}
-            variant="contained"
-            color="primary"
-          >
-            Save Order
+    <DndProvider backend={HTML5Backend}>
+      <List>
+        {items.map((item, index) => {
+          const { isDragging, dragRef } = useDragDrop(`item-${index}`, index, onReorder);
+          
+          return (
+            <Box
+              ref={dragRef}
+              key={index}
+              sx={{
+                opacity: isDragging ? 0.5 : 1,
+                cursor: 'move',
+              }}
+            >
+              {renderItem(item, index)}
+            </Box>
+          );
+        })}
+      </List>
+      {/* Add optional save/cancel buttons */}
+      {hasChanges && onSave && onCancel && (
+        <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+          <Button onClick={onCancel} disabled={isSaving}>
+            Cancel
           </Button>
-        </Stack>
+          <Button onClick={onSave} disabled={isSaving} variant="contained" color="primary">
+            Save Changes
+          </Button>
+        </Box>
       )}
-    </Paper>
+    </DndProvider>
   );
-}
+};
+
+export default ReorderableList;

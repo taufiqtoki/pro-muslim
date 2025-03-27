@@ -17,6 +17,8 @@ import { ToastProvider } from './contexts/ToastContext.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { PlayerProvider } from './contexts/PlayerContext.tsx';
 import { QueueProvider } from './contexts/QueueContext.tsx';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 export const App: React.FC = () => {
   return (
@@ -26,23 +28,25 @@ export const App: React.FC = () => {
           <PlayerProvider>
             <QueueProvider>
               <StopwatchProvider>
-                <BrowserRouter>
-                  <ErrorBoundary>
-                    <Routes>
-                      <Route path="/" element={<Home />}>
-                        <Route index element={<HomeTab />} />
-                        <Route path="works" element={<WorksTab />} />
-                        <Route path="agenda" element={<AgendaTab />} />
-                        <Route path="routine" element={<RoutineTab />} />
-                        <Route path="bucket" element={<BucketTab />} />
-                        <Route path="profile" element={<Profile />} />
-                        <Route path="report" element={<Report />} />
-                        <Route path="settings" element={<Settings />} />
-                        <Route path="player" element={<AudioPlayer />} />
-                      </Route>
-                    </Routes>
-                  </ErrorBoundary>
-                </BrowserRouter>
+                <DndProvider backend={HTML5Backend}>
+                  <BrowserRouter>
+                    <ErrorBoundary>
+                      <Routes>
+                        <Route path="/" element={<Home />}>
+                          <Route index element={<HomeTab />} />
+                          <Route path="works" element={<WorksTab />} />
+                          <Route path="agenda" element={<AgendaTab />} />
+                          <Route path="routine" element={<RoutineTab />} />
+                          <Route path="bucket" element={<BucketTab />} />
+                          <Route path="profile" element={<Profile />} />
+                          <Route path="report" element={<Report />} />
+                          <Route path="settings" element={<Settings />} />
+                          <Route path="player" element={<AudioPlayer />} />
+                        </Route>
+                      </Routes>
+                    </ErrorBoundary>
+                  </BrowserRouter>
+                </DndProvider>
               </StopwatchProvider>
             </QueueProvider>
           </PlayerProvider>

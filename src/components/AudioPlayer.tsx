@@ -20,7 +20,6 @@ import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import YouTubeIcon from '@mui/icons-material/YouTube';
 import DragHandleIcon from '@mui/icons-material/DragHandle';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { usePlaylist } from '../hooks/usePlaylist.ts';
@@ -45,15 +44,17 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import { localFileService } from '../services/localFileService.ts';
-import { useDragAndDrop } from '../hooks/useDragAndDrop.ts';
+import { useDragDrop, useFileDrop } from '../hooks/useDragDrop.ts';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import { usePlayer } from '../contexts/PlayerContext.tsx';
-import MiniPlayer from './AudioPlayer/MiniPlayer.tsx';
-import { RepeatMode } from '../types/player.ts';
-import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreen';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import { logger } from '../utils/logger.ts';
 import { FixedSizeList as List } from 'react-window';
+import { workerCode } from '../utils/worker.ts';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import QueueTrackRow from './AudioPlayer/QueueTrackRow.tsx';
+import { RepeatMode } from '../types/player.ts';
 
 const FavoriteIconComponent: React.FC<{ 
   isFavorite: boolean;
@@ -132,11 +133,86 @@ const AudioPlayer: React.FC = () => {
   const [previousVolume, setPreviousVolume] = useState(100);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const [volumeTimeout, setVolumeTimeout] = useState<NodeJS.Timeout | null>(null);
-  const queueDragDrop = useDragAndDrop();
-  const playlistDragDrop = useDragAndDrop();
+  const queueDragDrop = useFileDrop();
+  const playlistDragDrop = useFileDrop();
   const [playlistMenu, setPlaylistMenu] = useState<null | HTMLElement>(null);
   const [isShuffled, setIsShuffled] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [lastDragTime, setLastDragTime] = useState<number>(0);
+
+  // Fix: Add proper typing and initial value for worker ref
+  const worker = useRef<Worker | null>(null);
+
+  // Initialize worker
+  useEffect(() => {
+    const blob = new Blob(
+      [`(${workerCode.toString()})()`],
+      { type: 'application/javascript' }
+    );
+    worker.current = new Worker(URL.createObjectURL(blob));
+
+    // Cleanup
+    return () => {
+      worker.current?.terminate();
+      worker.current = null;
+    };
+  }, []);
+
+  // Update timeUpdate handler to use requestAnimationFrame
+  const timeUpdateRef = useRef<number | undefined>(undefined);
+  
+  const handleTimeUpdate = useCallback(() => {
+    if (!audioRef.current || isDragging) return;
+    
+    const updateTime = () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      const time = audio.currentTime;
+      setCurrentTime(time);
+      setSliderValue(time);
+      setDuration(audio.duration || 0);
+
+      timeUpdateRef.current = requestAnimationFrame(updateTime);
+    };
+
+    timeUpdateRef.current = requestAnimationFrame(updateTime);
+  }, [isDragging, setCurrentTime, setSliderValue, setDuration]);
+
+  // Cleanup animation frame
+  useEffect(() => {
+    return () => {
+      if (timeUpdateRef.current) {
+        cancelAnimationFrame(timeUpdateRef.current);
+      }
+    };
+  }, []);
+
+  // Optimize drag and drop
+  const optimizedDragEnd = useCallback((result: any) => {
+    if (!result.destination) return;
+    
+    // Use requestAnimationFrame for smooth UI updates
+    requestAnimationFrame(() => {
+      const tracks = getTracks();
+      const newTracks = Array.from(tracks);
+      const [reorderedTrack] = newTracks.splice(result.source.index, 1);
+      newTracks.splice(result.destination.index, 0, reorderedTrack);
+      setQueueTracks(newTracks);
+    });
+  }, []);
+
+  // Add error boundary
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography color="error">
+          Something went wrong with the audio player. Please refresh the page.
+        </Typography>
+      </Box>
+    );
+  }
 
   const youtubeOpts = {
     height: '1',
@@ -352,25 +428,6 @@ const AudioPlayer: React.FC = () => {
     } catch (error) {
       logger.error('Error in handlePlayPause:', error);
       showToast('Error playing track', 'error');
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    const audio = audioRef.current;
-    if (!audio || isDragging) return;
-
-    const time = audio.currentTime;
-    setCurrentTime(time);
-    setSliderValue(time);
-    setDuration(audio.duration || 0);
-
-    // Update playback position state
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.setPositionState({
-        duration: audio.duration || 0,
-        position: time,
-        playbackRate: audio.playbackRate
-      });
     }
   };
 
@@ -1024,12 +1081,6 @@ const AudioPlayer: React.FC = () => {
         <Box sx={{ width: '100%', overflow: 'auto' }}>
           <SpeedControls onSpeedChange={changePlaybackRate} />
         </Box>
-        <IconButton
-          onClick={() => setIsMinimized(true)}
-          sx={{ position: 'absolute', top: 8, right: 8 }}
-        >
-          <CloseFullscreenIcon />
-        </IconButton>
       </Paper>
     );
   };
@@ -1046,85 +1097,13 @@ const AudioPlayer: React.FC = () => {
     </Box>
   );
 
-  const renderQueueTrackRow = (track: Track, index: number) => (
-    <Draggable 
-      // Add index to make key more unique
-      key={`queue-${track.id}-${index}`} 
-      draggableId={track.id} 
-      index={index}
-    >
-      {(provided) => (
-        <TableRow
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          sx={{
-            backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
-            '&:hover': { 
-              backgroundColor: index === currentTrackIndex ? 'primary.dark' : 'action.hover' 
-            },
-            ...(index === currentTrackIndex && { 
-              backgroundColor: 'primary.main',
-              color: 'primary.contrastText',
-              '& .MuiTableCell-root': {
-                color: 'inherit'
-              }
-            }),
-          }}
-        >
-          <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              height: '100%',
-              animation: index === currentTrackIndex && isPlaying ? 'pulse 1s infinite' : 'none',
-              '@keyframes pulse': {
-                '0%': { opacity: 1 },
-                '50%': { opacity: 0.5 },
-                '100%': { opacity: 1 },
-              }
-            }}>
-              {index === currentTrackIndex ? (
-                <MusicNoteIcon sx={{ color: isPlaying ? 'inherit' : 'text.secondary' }} />
-              ) : (
-                track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />
-              )}
-            </Box>
-          </TableCell>
-          <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
-          <TableCell 
-            onClick={() => handleTrackNameClick(index)}
-            sx={{ 
-              ...cellStyles, 
-              py: 1, 
-              px: { xs: 0.5, sm: 1 }, 
-              typography: 'body2',
-              '&:hover': { textDecoration: 'underline' }
-            }}
-          >
-            <span>{track.name}</span>
-          </TableCell>
-          <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
-            {formatDuration(track.duration)}
-          </TableCell>
-          <TableCell sx={{ p: 0 }}>
-            <Box sx={actionButtonsSx}>
-              <FavoriteIconComponent 
-                isFavorite={favorites.includes(track.id)}
-                onClick={() => toggleFavorite(track.id)}
-              />
-              <IconButton size="small" onClick={() => removeFromQueue(track.id)}>
-                <DeleteIcon />
-              </IconButton>
-              <Box {...provided.dragHandleProps} sx={{ display: 'flex', cursor: 'grab', ml: -0.5 }}>
-                <DragHandleIcon />
-              </Box>
-            </Box>
-            </TableCell>
-          </TableRow>
-      )}
-    </Draggable>
-  );
+  const moveTrack = useCallback((fromIndex: number, toIndex: number) => {
+    const newTracks = [...queueTracks];
+    const [movedTrack] = newTracks.splice(fromIndex, 1);
+    newTracks.splice(toIndex, 0, movedTrack);
+    setQueueTracks(newTracks);
+    setLastDragTime(Date.now());
+  }, [queueTracks]);
 
   const renderQueueHeader = () => (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -1139,9 +1118,9 @@ const AudioPlayer: React.FC = () => {
             <ShuffleIcon />
           </IconButton>
         </Tooltip>
-        <IconButton 
-          onClick={clearQueue}
+        <IconButton
           title="Clear queue"
+          onClick={clearQueue}
           size="small"
           color="error"
         >
@@ -1153,7 +1132,7 @@ const AudioPlayer: React.FC = () => {
 
   const tableStyles = {
     width: "100%",
-    tableLayout: "fixed",
+    tableLayout: "fixed" as const,
     borderCollapse: 'separate',
     borderSpacing: 0,
     '& .MuiTableHead-root': {
@@ -1170,11 +1149,10 @@ const AudioPlayer: React.FC = () => {
       }
     },
     '& .MuiTableCell-root': {
+      height: '36px',
       borderBottom: '1px solid',
       borderColor: 'divider',
       padding: '0 4px',
-      height: '36px',
-      lineHeight: '36px',
       fontSize: '0.875rem',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
@@ -1219,12 +1197,12 @@ const AudioPlayer: React.FC = () => {
         justifyContent: 'center',
         '& .MuiBox-root': {
           justifyContent: 'center'
-        }
+        },
       },
       '&:nth-of-type(3)': {  // Name column
         paddingLeft: '4px',  // Keep minimal padding for name only
       },
-      // Single set of percentage-based widths for all screen sizes
+      // Single set of percentage-based widths for all screen sizes,
       '&:nth-of-type(1)': { width: '8%' },     // Icon
       '&:nth-of-type(2)': { width: '8%' },     // Number
       '&:nth-of-type(4)': { width: '15%' },    // Duration
@@ -1327,117 +1305,126 @@ const AudioPlayer: React.FC = () => {
   };
 
   const renderQueuePanel = () => (
-    <Paper 
-      elevation={3} 
-      sx={{ 
-        p: 2, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '405px',
-        position: 'relative',
-        ...(queueDragDrop.isDragging && {
-          '&::after': {
-            content: '"Drop YouTube URL or files here"',
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            color: 'primary.main',
-            fontWeight: 'bold',
-            zIndex: 2,
-            textAlign: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            padding: '1rem',
-            borderRadius: '4px',
-          }
-        })
-      }}
-      onDragOver={queueDragDrop.handleDragOver}
-      onDragLeave={queueDragDrop.handleDragLeave}
-      onDrop={(e) => queueDragDrop.handleDrop(
-        e,
-        (files) => {
-          const event = { target: { files, dataset: { target: 'queue' } } } as any;
-          addLocalTrackToPlaylist(event);
-        },
-        handleQueueDrop
-      )}
-    >
-      {renderQueueHeader()}
-      <TableContainer sx={tableContainerSx}>
-        <DragDropContext onDragEnd={onDragEnd}>
-          <Droppable droppableId="queue">
-            {(provided) => (
-              <Table size="small" stickyHeader sx={commonTableSx}>
-                {renderTableHeader(true)}
-                <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                  {queueTracks.map((track, index) => renderQueueTrackRow(track, index))}
-                  {provided.placeholder}
-                  {queueTracks.length < 5 && renderEmptyRows(5 - queueTracks.length)}
-                </TableBody>
-              </Table>
-            )}
-          </Droppable>
-        </DragDropContext>
-      </TableContainer>
-      <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-          <TextField
-            label="YouTube URL"
-            size="small"
-            value={queuePlaylistUrl}
-            onChange={(e) => setQueuePlaylistUrl(e.target.value)}
-            sx={{ flex: 1, ...textFieldStyles }}
-            InputProps={{
-              endAdornment: (
-                <Button
-                  variant="contained"
-                  onClick={handleQueueUrlSubmit}
-                  size="small"
-                  sx={addButtonStyles}
-                >
-                  <AddIcon sx={{ fontSize: '20px' }} />
-                </Button>
-              ),
-            }}
-          />
-          <Button
-            variant="contained"
-            component="label"
-            startIcon={<InsertDriveFileIcon />}
-            color="secondary"
-          >
-            Add File
-            <input
-              type="file"
-              accept={SUPPORTED_FORMATS.join(',')}
-              onChange={addLocalTrackToPlaylist}
-              multiple
-              hidden
-              data-target="queue"  // Added this attribute
+    <DndProvider backend={HTML5Backend}>
+      <Paper 
+        elevation={3} 
+        sx={{ 
+          p: 2, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          height: '405px',
+          position: 'relative',
+          ...(queueDragDrop.isDragging && {
+            '&::after': {
+              content: '"Drop YouTube URL or files here"',
+              position: 'absolute',
+              top: '50%',
+              left: '50%', 
+              transform: 'translate(-50%, -50%)',
+              color: 'primary.main',
+              fontWeight: 'bold',
+              zIndex: 2,
+              textAlign: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              padding: '1rem',
+              borderRadius: '4px',
+            }
+          })
+        }}
+        onDragOver={queueDragDrop.handleDragOver}
+        onDragLeave={queueDragDrop.handleDragLeave}
+        onDrop={(e) => queueDragDrop.handleDrop(
+          e,
+          (files) => {
+            const event = { target: { files, dataset: { target: 'queue' } } } as any;
+            addLocalTrackToPlaylist(event);
+          },
+          handleQueueDrop
+        )}
+      >
+        {renderQueueHeader()}
+        <TableContainer sx={tableContainerSx}>
+          <Table size="small" stickyHeader sx={commonTableSx}>
+            {renderTableHeader(true)}
+            <TableBody>
+              {queueTracks.map((track, index) => (
+                <QueueTrackRow 
+                  key={`queue-${track.id}-${index}`}
+                  track={track}
+                  index={index}
+                  currentTrackIndex={currentTrackIndex}
+                  isPlaying={isPlaying}
+                  favorites={favorites}
+                  moveTrack={moveTrack}
+                  onNameClick={handleTrackNameClick}
+                  onToggleFavorite={toggleFavorite}
+                  onRemoveFromQueue={removeFromQueue}
+                />
+              ))}
+              {queueTracks.length < 5 && renderEmptyRows(5 - queueTracks.length)}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <TextField
+              label="YouTube URL"
+              size="small"
+              value={queuePlaylistUrl}
+              onChange={(e) => setQueuePlaylistUrl(e.target.value)}
+              sx={{ flex: 1, ...textFieldStyles }}
+              InputProps={{
+                endAdornment: (
+                  <Button
+                    variant="contained"
+                    onClick={handleQueueUrlSubmit}
+                    size="small"
+                    sx={addButtonStyles}
+                  >
+                    <AddIcon sx={{ fontSize: '20px' }} />
+                  </Button>
+                ),
+              }}
             />
-          </Button>
+            <Button
+              variant="contained"
+              size="small"
+              component="label"
+              startIcon={<InsertDriveFileIcon />}
+              color="secondary"
+            >
+              Add File
+              <input
+                type="file"
+                accept={SUPPORTED_FORMATS.join(',')}
+                onChange={addLocalTrackToPlaylist}
+                multiple
+                hidden
+                data-target="queue"  // Added this attribute
+              />
+            </Button>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              fullWidth
+              startIcon={<YouTubeIcon />}
+              onClick={() => setYoutubePlaylistDialog(true)}
+            >
+              Import YT List to Queue
+            </Button>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => setNewPlaylistDialog(true)}
+              startIcon={<SaveIcon />}
+            >
+              Queue
+            </Button>
+          </Box>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="outlined"
-            fullWidth
-            startIcon={<YouTubeIcon />}
-            onClick={() => setYoutubePlaylistDialog(true)}
-          >
-            Import YT List to Queue
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={() => setNewPlaylistDialog(true)}
-            startIcon={<SaveIcon />}
-          >
-            Queue
-          </Button>
-        </Box>
-      </Box>
-    </Paper>
+      </Paper>
+    </DndProvider>
   );
 
   const renderPlaylistTrackRow = (track: Track, index: number) => {
@@ -1446,7 +1433,7 @@ const AudioPlayer: React.FC = () => {
       <TableRow
         // Add playlist ID to make key unique
         key={`playlist-${currentPlaylistId}-${track.id}-${index}`}
-        sx={{
+        sx={{ 
           backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
           '&:hover': { backgroundColor: 'action.hover' },
           ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
@@ -1457,7 +1444,7 @@ const AudioPlayer: React.FC = () => {
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
-            height: '100%' 
+            height: '100%'
           }}>
             {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
           </Box>
@@ -1491,7 +1478,7 @@ const AudioPlayer: React.FC = () => {
 
   const getFavoritesPlaylist = async (): Promise<Playlist> => {
     const favoriteTracks: Track[] = [];
-    
+
     // Get all tracks from both queue and playlists
     const allTracks = [
       ...queueTracks,
@@ -1542,8 +1529,8 @@ const AudioPlayer: React.FC = () => {
             <CircularProgress size={16} sx={{ ml: 1 }} />
           )}
         </Typography>
-        <IconButton 
-          size="small" 
+        <IconButton
+          size="small"
           onClick={(e) => setPlaylistMenu(e.currentTarget)}
         >
           <ArrowDropDownIcon />
@@ -1553,8 +1540,8 @@ const AudioPlayer: React.FC = () => {
         {/* Only show delete button for non-favorites playlists */}
         {currentPlaylistId !== 'favorites' && currentPlaylistId !== 'default' && (
           <IconButton
-            size="small"
             color="error"
+            size="small" // Only include size once
             onClick={handleDeletePlaylist}
             title="Delete playlist"
           >
@@ -1696,7 +1683,7 @@ const AudioPlayer: React.FC = () => {
             content: '"Drop YouTube URL or files here"',
             position: 'absolute',
             top: '50%',
-            left: '50%',
+            left: '50%', 
             transform: 'translate(-50%, -50%)',
             color: 'primary.main',
             fontWeight: 'bold',
@@ -1729,7 +1716,6 @@ const AudioPlayer: React.FC = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
       <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
           <TextField
@@ -1753,6 +1739,7 @@ const AudioPlayer: React.FC = () => {
           />
           <Button
             variant="contained"
+            size="small"
             component="label"
             startIcon={<InsertDriveFileIcon />}
             color="secondary"
@@ -1864,7 +1851,7 @@ const AudioPlayer: React.FC = () => {
       showToast('Please enter a playlist name and ensure queue has tracks', 'error');
       return;
     }
-    
+
     try {
       // Check for duplicate names
       const duplicateName = playlists.some(p => p.name === newPlaylistData.name);
@@ -1953,7 +1940,6 @@ const AudioPlayer: React.FC = () => {
   const handleTrackNameClick = async (index: number) => {
     const track = queueTracks[index];
     if (!track) return;
-    
     try {
       setCurrentTrackIndex(index);
       setCurrentTime(0);
@@ -1973,10 +1959,8 @@ const AudioPlayer: React.FC = () => {
   // Add handler to create favorites playlist if it doesn't exist
   const initializeFavoritesPlaylist = async () => {
     if (!user) return;
-    
     try {
       let favoritesPlaylist = await playlistService.getPlaylist(user.uid, 'favorites');
-      
       if (!favoritesPlaylist) {
         // Create new favorites playlist if it doesn't exist
         const favoritesId = await playlistService.createPlaylist(user.uid, {
@@ -1988,14 +1972,12 @@ const AudioPlayer: React.FC = () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
-        
         favoritesPlaylist = await playlistService.getPlaylist(user.uid, favoritesId);
       }
 
       // Load favorites from user document
       const userRef = doc(db, `users/${user.uid}`);
       const userDoc = await getDoc(userRef);
-      
       if (userDoc.exists()) {
         const userData = userDoc.data();
         setFavorites(userData.favorites || []);
@@ -2019,7 +2001,6 @@ const AudioPlayer: React.FC = () => {
 
   const handleDeletePlaylist = async () => {
     if (currentPlaylistId === 'favorites' || currentPlaylistId === 'default') return;
-    
     const playlistToDelete = playlists.find(p => p.id === currentPlaylistId);
     if (!playlistToDelete) return;
 
@@ -2077,9 +2058,10 @@ const AudioPlayer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [volume]);
 
-  const handleTrackEnd = () => {
-    switch (repeatMode) {
-      case 'one':
+  const handleTrackEnd = useCallback(() => {
+    const mode = repeatMode as RepeatMode;
+    switch (mode) {
+      case RepeatMode.ONE:
         // Restart current track
         if (youtubeRef.current?.internalPlayer) {
           youtubeRef.current.internalPlayer.seekTo(0);
@@ -2089,7 +2071,7 @@ const AudioPlayer: React.FC = () => {
           audioRef.current.play();
         }
         break;
-      case 'all':
+      case RepeatMode.ALL:
         // Play next track or go back to start of queue
         if (currentTrackIndex === queueTracks.length - 1) {
           handleTrackSelection(0);
@@ -2097,6 +2079,7 @@ const AudioPlayer: React.FC = () => {
           handleNextTrack();
         }
         break;
+      case RepeatMode.NONE:
       default:
         // Stop if it's the last track, otherwise play next
         if (currentTrackIndex === queueTracks.length - 1) {
@@ -2105,7 +2088,7 @@ const AudioPlayer: React.FC = () => {
           handleNextTrack();
         }
     }
-  };
+  }, [repeatMode, currentTrackIndex, queueTracks.length]);
 
   const handleShuffleToggle = () => {
     setIsShuffled(!isShuffled);
@@ -2144,16 +2127,6 @@ const AudioPlayer: React.FC = () => {
   }, [handleScroll]);
 
   // Optimize table rendering with virtualization
-  const renderVirtualizedList = ({ index, style }: any) => {
-    const track = queueTracks[index];
-    return (
-      <div style={style}>
-        {renderQueueTrackRow(track, index)}
-      </div>
-    );
-  };
-
-  // Update table container to use virtualization
   const renderQueueList = () => (
     <List
       height={275}
@@ -2161,41 +2134,35 @@ const AudioPlayer: React.FC = () => {
       itemSize={36}
       width="100%"
     >
-      {renderVirtualizedList}
+      {({ index, style }) => (
+        <div style={style}>
+          <QueueTrackRow
+            key={`queue-${queueTracks[index].id}-${index}`}
+            track={queueTracks[index]}
+            index={index}
+            currentTrackIndex={currentTrackIndex}
+            isPlaying={isPlaying}
+            favorites={favorites}
+            moveTrack={moveTrack}
+            onNameClick={handleTrackNameClick}
+            onToggleFavorite={toggleFavorite}
+            onRemoveFromQueue={removeFromQueue}
+          />
+        </div>
+      )}
     </List>
   );
-
-  if (isMinimized) {
-    return (
-      <MiniPlayer
-        track={currentTrack}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        onPlayPause={handlePlayPause}
-        onMaximize={() => setIsMinimized(false)}
-        onSeek={(value) => {
-          setCurrentTime(value);
-          if (audioRef.current) {
-            audioRef.current.currentTime = value;
-          }
-        }}
-      />
-    );
-  }
 
   return (
     <Box sx={{ p: 2 }}>
       {youtubeVideoId ? renderYoutubePlayer() : (
         <audio
           ref={audioRef}
-          src={getCurrentTrack()?.url || ''}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-          onEnded={handleNextTrack}
+          onEnded={handleTrackEnd}
         />
       )}
-  
       {renderMainContent()}
   
       <Box sx={{ 

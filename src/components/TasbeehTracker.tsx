@@ -12,7 +12,7 @@ interface TasbeehTrackerProps {
 const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ tasbeehs }) => {
   const { user } = useAuth();
   const {
-    items,                 // Use items instead of input tasbeehs
+    items,
     handleReorder,
     saveReorder,
     cancelReorder,
@@ -23,6 +23,14 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ tasbeehs }) => {
     `users/${user?.uid}/tasbeehs`
   );
 
+  // Add wrapper function to handle index-based reordering
+  const handleReorderByIndex = (startIndex: number, endIndex: number) => {
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(startIndex, 1);
+    newItems.splice(endIndex, 0, movedItem);
+    handleReorder(newItems);
+  };
+
   const renderTasbeeh = (tasbeeh: Tasbeeh) => (
     <ListItemText 
       primary={tasbeeh.name}
@@ -32,8 +40,8 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ tasbeehs }) => {
 
   return (
     <ReorderableList
-      items={items}        // Use items from hook instead of props
-      onReorder={handleReorder}
+      items={items}
+      onReorder={handleReorderByIndex} // Use the new wrapper function
       onSave={saveReorder}
       onCancel={cancelReorder}
       hasChanges={hasChanges}
