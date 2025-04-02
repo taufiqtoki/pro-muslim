@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import { App } from './App.tsx';  // Update import with correct name and extension
-import reportWebVitals from './reportWebVitals.ts';  // Add extension
+import App from './App';  // changed from { App } to App
+import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

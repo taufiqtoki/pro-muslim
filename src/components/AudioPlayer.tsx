@@ -425,9 +425,9 @@ const AudioPlayer: React.FC = () => {
           setIsPlaying(!isPlaying);
         }
       }
-    } catch (error) {
-      logger.error('Error in handlePlayPause:', error);
-      showToast('Error playing track', 'error');
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Error playing track', 'error');
+      throw error; // Re-throw to handle in calling function
     }
   };
 
@@ -649,8 +649,8 @@ const AudioPlayer: React.FC = () => {
           };
         }
       }
-    } catch (error) {
-      showToast(error.message || 'Error playing track', 'error');
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Error playing track', 'error');
       throw error; // Re-throw to handle in calling function
     }
   };
@@ -810,8 +810,8 @@ const AudioPlayer: React.FC = () => {
       }
 
       setYoutubePlaylistDialog(false);
-    } catch (error) {
-      showToast(error.message || 'Error importing playlist', 'error');
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Error importing playlist', 'error');
     } finally {
       setImportLoading(false);
       setImportProgress({ current: 0, total: 0 });
@@ -1898,9 +1898,9 @@ const AudioPlayer: React.FC = () => {
       setCurrentPlaylistId(newPlaylistId);
       await loadPlaylists();
       
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error saving queue:', error);
-      showToast(error.message || 'Error saving queue', 'error');
+      showToast(error instanceof Error ? error.message : 'Error saving queue', 'error');
     }
   };
 
@@ -2134,7 +2134,7 @@ const AudioPlayer: React.FC = () => {
       itemSize={36}
       width="100%"
     >
-      {({ index, style }) => (
+      {({ index, style }: { index: number, style: React.CSSProperties }) => (
         <div style={style}>
           <QueueTrackRow
             key={`queue-${queueTracks[index].id}-${index}`}

@@ -9,27 +9,27 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == userId;
     }
 
-    // User document
+    // User document structure:
+    // /users/{userId} {
+    //   email: string,
+    //   favorites: string[],
+    //   queue: string[]
+    // }
     match /users/{userId} {
-      // Allow initialization and reading of user document
-      allow create: if isAuth() && request.auth.uid == userId;
-      allow read, update: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+        request.resource.data.email is string;
       
-      // Validate arrays in user document
-      allow write: if isOwner(userId) && 
+      allow update: if isOwner(userId) && 
+        (!request.resource.data.keys().hasAll(['email']) || request.resource.data.email is string) &&
         (!request.resource.data.keys().hasAll(['favorites']) || request.resource.data.favorites is list) &&
         (!request.resource.data.keys().hasAll(['queue']) || request.resource.data.queue is list);
+      
+      allow read: if isOwner(userId);
 
-      // Playlists subcollection
+      // Custom playlists collection
       match /playlists/{playlistId} {
-        // Allow all operations except on 'queue'
-        allow create, read, update, delete: if isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
-    }
-
-    // For other collections
-    match /{document=**} {
-      allow read, write: if isAuth();
     }
   }
 }

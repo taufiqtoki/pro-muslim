@@ -1,131 +1,258 @@
-import React, { useState } from 'react';
-import { 
-  Paper, 
-  Typography, 
-  List, 
-  ListItem, 
-  TextField, 
-  Button, 
-  IconButton,
-  Box,
-  Divider
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, TextField, Typography, List, ListItem, ListItemText, IconButton, Alert, CircularProgress } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { collection, addDoc, deleteDoc, doc, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase.ts';
-import { useAuth } from '../../hooks/useAuth.ts';
-import { Tasbeeh } from '../../hooks/useTasbeehs.ts';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import { useAuth } from '../../hooks/useAuth';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { v4 as uuidv4 } from 'uuid';
+import { getFromStorage, saveToStorage, STORAGE_KEYS } from '../../utils/localStorage';
 
-interface TasbeehFormData {
+// Define Tasbeeh type
+interface Tasbeeh {
+  id: string;
   name: string;
-  count: string;
+  count: number;
+  createdAt?: Date;
 }
 
-export const TasbeehSettings = () => {
-  const { user } = useAuth();
+const TasbeehSettings = () => {
+  const [tasbeehName, setTasbeehName] = useState('');
+  const [tasbeehCount, setTasbeehCount] = useState('33');
   const [tasbeehs, setTasbeehs] = useState<Tasbeeh[]>([]);
-  const [newTasbeeh, setNewTasbeeh] = useState<TasbeehFormData>({ name: '', count: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(navigator.onLine);
+  const { user } = useAuth();
 
-  React.useEffect(() => {
-    if (!user) return;
+  useEffect(() => {
+    // Monitor online status
+    const handleOnline = () => setOnlineStatus(true);
+    const handleOffline = () => setOnlineStatus(false);
 
-    const tasbeehsRef = collection(db, `users/${user.uid}/tasbeehs`);
-    const q = query(tasbeehsRef, orderBy('order', 'asc'));
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Load tasbeehs from Firestore and local storage
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+
+    // First load from local storage
+    const localTasbeehs = getFromStorage<Tasbeeh[]>(STORAGE_KEYS.TASBEEHS, []);
+    if (localTasbeehs.length > 0) {
+      setTasbeehs(localTasbeehs);
+    }
+
+    // If online and user is logged in, set up Firestore listener
+    let unsubscribe = () => { /* cleanup function */ };
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasbeehData: Tasbeeh[] = [];
-      snapshot.forEach((doc) => {
-        tasbeehData.push({ id: doc.id, ...doc.data() } as Tasbeeh);
+    if (onlineStatus && user) {
+      const q = query(collection(db, "tasbeehs"), where("userId", "==", user.uid));
+      
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const tasbeehList: Tasbeeh[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          tasbeehList.push({
+            id: doc.id,
+            name: data.name,
+            count: data.count,
+            createdAt: data.createdAt?.toDate()
+          });
+        });
+        
+        // Update state and local storage
+        setTasbeehs(tasbeehList);
+        saveToStorage(STORAGE_KEYS.TASBEEHS, tasbeehList);
+        setLoading(false);
+      }, (err) => {
+        console.error("Error getting tasbeehs:", err);
+        setError("Failed to load tasbeehs from server. Using local data.");
+        setLoading(false);
       });
-      setTasbeehs(tasbeehData);
-    });
+    } else {
+      setLoading(false);
+      if (!onlineStatus) {
+        setError("You are offline. Using locally stored tasbeehs.");
+      }
+    }
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, onlineStatus]);
 
-  const handleAdd = async () => {
-    if (!user || !newTasbeeh.name || !newTasbeeh.count) return;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!tasbeehName.trim()) {
+      setError('Tasbeeh name is required');
+      return;
+    }
+    
+    const count = parseInt(tasbeehCount);
+    if (isNaN(count) || count <= 0) {
+      setError('Count must be a positive number');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    
+    const newTasbeeh: Tasbeeh = {
+      id: uuidv4(), // Generate temporary ID for local storage
+      name: tasbeehName,
+      count: count,
+      createdAt: new Date()
+    };
+    
     try {
-      const count = parseInt(newTasbeeh.count);
-      if (isNaN(count)) return;
-
-      const tasbeehsRef = collection(db, `users/${user.uid}/tasbeehs`);
-      await addDoc(tasbeehsRef, {
-        name: newTasbeeh.name,
-        count: count,
-        order: Date.now() // Use timestamp as order
-      });
-
-      setNewTasbeeh({ name: '', count: '' });
+      // Always update local state and storage first
+      const updatedTasbeehs = [...tasbeehs, newTasbeeh];
+      setTasbeehs(updatedTasbeehs);
+      saveToStorage(STORAGE_KEYS.TASBEEHS, updatedTasbeehs);
+      
+      // If online, add to Firestore
+      if (onlineStatus && user) {
+        await addDoc(collection(db, "tasbeehs"), {
+          name: tasbeehName,
+          count: count,
+          userId: user.uid,
+          createdAt: new Date()
+        });
+      }
+      
+      setTasbeehName('');
+      setTasbeehCount('33');
+      setSuccess(`Tasbeeh added successfully${!onlineStatus ? ' (offline mode)' : ''}`);
     } catch (error) {
-      console.error('Error adding tasbeeh:', error);
+      console.error("Error adding tasbeeh:", error);
+      setError('Failed to add tasbeeh to server, but saved locally');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!user) return;
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    
     try {
-      await deleteDoc(doc(db, `users/${user.uid}/tasbeehs`, id));
+      // Update local state and storage first
+      const updatedTasbeehs = tasbeehs.filter(t => t.id !== id);
+      setTasbeehs(updatedTasbeehs);
+      saveToStorage(STORAGE_KEYS.TASBEEHS, updatedTasbeehs);
+      
+      // If online, delete from Firestore
+      if (onlineStatus && user) {
+        await deleteDoc(doc(db, "tasbeehs", id));
+      }
+      
+      setSuccess(`Tasbeeh deleted successfully${!onlineStatus ? ' (offline mode)' : ''}`);
     } catch (error) {
-      console.error('Error deleting tasbeeh:', error);
+      console.error("Error deleting tasbeeh:", error);
+      setError('Failed to delete tasbeeh from server, but removed locally');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Paper sx={{ p: 3, m: 2 }}>
-      <Typography variant="h6" gutterBottom>
-        Manage Tasbeehs
-      </Typography>
-
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <TextField
-          label="Tasbeeh Name"
-          value={newTasbeeh.name}
-          onChange={(e) => setNewTasbeeh(prev => ({ ...prev, name: e.target.value }))}
-          size="small"
-        />
-        <TextField
-          label="Count"
-          type="number"
-          value={newTasbeeh.count}
-          onChange={(e) => setNewTasbeeh(prev => ({ ...prev, count: e.target.value }))}
-          size="small"
-          sx={{ width: 100 }}
-        />
+    <Box sx={{ maxWidth: 600, mx: 'auto', p: 2 }}>
+      {/* Offline indicator */}
+      {!onlineStatus && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          You are currently offline. Changes will be saved locally and synced when you&apos;re back online.
+        </Alert>
+      )}
+      
+      <Typography variant="h6" gutterBottom>Tasbeeh Settings</Typography>
+      
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      
+      <Box component="form" onSubmit={handleSubmit} sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+          <TextField
+            label="Tasbeeh Name"
+            value={tasbeehName}
+            onChange={(e) => setTasbeehName(e.target.value)}
+            fullWidth
+            required
+            sx={{ flexGrow: 1 }}
+          />
+          <TextField
+            label="Count"
+            value={tasbeehCount}
+            onChange={(e) => setTasbeehCount(e.target.value)}
+            type="number"
+            InputProps={{ inputProps: { min: 1 } }}
+            sx={{ width: { xs: '100%', sm: '100px' } }}
+          />
+        </Box>
         <Button
-          startIcon={<AddIcon />}
+          type="submit"
           variant="contained"
-          onClick={handleAdd}
-          disabled={!newTasbeeh.name || !newTasbeeh.count}
+          color="primary"
+          startIcon={loading ? <CircularProgress size={24} color="inherit" /> : <AddCircleIcon />}
+          disabled={loading}
         >
-          Add
+          Add Tasbeeh
         </Button>
       </Box>
-
-      <Divider sx={{ my: 2 }} />
-
-      <List>
-        {tasbeehs.map((tasbeeh) => (
-          <ListItem
-            key={tasbeeh.id}
-            secondaryAction={
-              <IconButton 
-                edge="end" 
-                aria-label="delete"
-                onClick={() => handleDelete(tasbeeh.id)}
+      
+      <Typography variant="h6" gutterBottom>Your Tasbeehs</Typography>
+      
+      {loading && tasbeehs.length === 0 ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <List>
+          {tasbeehs.length === 0 ? (
+            <ListItem>
+              <ListItemText primary="No tasbeehs added yet" />
+            </ListItem>
+          ) : (
+            tasbeehs.map((tasbeeh) => (
+              <ListItem
+                key={tasbeeh.id}
+                secondaryAction={
+                  <IconButton 
+                    edge="end" 
+                    aria-label="delete"
+                    onClick={() => handleDelete(tasbeeh.id)}
+                    disabled={loading}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                }
+                sx={{ 
+                  mb: 1, 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  borderRadius: 1 
+                }}
               >
-                <DeleteIcon />
-              </IconButton>
-            }
-          >
-            <Typography>
-              {tasbeeh.name} ({tasbeeh.count})
-            </Typography>
-          </ListItem>
-        ))}
-      </List>
-    </Paper>
+                <ListItemText
+                  primary={tasbeeh.name}
+                  secondary={`Count: ${tasbeeh.count}`}
+                />
+              </ListItem>
+            ))
+          )}
+        </List>
+      )}
+    </Box>
   );
 };
+
+export default TasbeehSettings;

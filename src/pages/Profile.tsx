@@ -14,6 +14,7 @@ const Profile: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [clearDataModalOpen, setClearDataModalOpen] = useState(false);
+  const [dataSource, setDataSource] = useState<'firebase' | 'local'>('firebase');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,15 +22,60 @@ const Profile: React.FC = () => {
 
     const fetchSleepData = async () => {
       try {
+        // First try to get data from Firebase
         const date = format(new Date(), 'yyyy-MM-dd');
         const sleepDoc = await getDoc(doc(db, `users/${user.uid}/sleep/${date}`));
         if (sleepDoc.exists()) {
           setTotalMinutes(sleepDoc.data().totalMinutes);
+          setDataSource('firebase');
+          setLoading(false);
+          return;
         }
-      } catch (err) {
-        setError('Failed to fetch sleep data');
-      } finally {
+        
+        // If not found in Firebase, try to get from localStorage
+        const storedHistory = localStorage.getItem('sleepHistory');
+        if (storedHistory) {
+          const history = JSON.parse(storedHistory);
+          // Calculate total minutes from sleep history
+          const calcTotalMinutes = history.reduce((acc: number, entry: { duration: string }) => {
+            const [hours, minutes] = entry.duration.split(':').map(Number);
+            return acc + (hours * 60 + minutes);
+          }, 0);
+          
+          setTotalMinutes(calcTotalMinutes);
+          setDataSource('local');
+          setLoading(false);
+          return;
+        }
+        
+        // No data found in either source
+        setTotalMinutes(0);
         setLoading(false);
+      } catch (err) {
+        console.error('Error fetching sleep data:', err);
+        
+        // Fallback to localStorage if Firebase fetch fails
+        try {
+          const storedHistory = localStorage.getItem('sleepHistory');
+          if (storedHistory) {
+            const history = JSON.parse(storedHistory);
+            // Calculate total minutes from sleep history
+            const calcTotalMinutes = history.reduce((acc: number, entry: { duration: string }) => {
+              const [hours, minutes] = entry.duration.split(':').map(Number);
+              return acc + (hours * 60 + minutes);
+            }, 0);
+            
+            setTotalMinutes(calcTotalMinutes);
+            setDataSource('local');
+            setError(null);
+          } else {
+            setError('No sleep data available');
+          }
+        } catch (localErr) {
+          setError('Failed to fetch sleep data');
+        } finally {
+          setLoading(false);
+        }
       }
     };
 
@@ -105,6 +151,10 @@ const Profile: React.FC = () => {
     try {
       setLoading(true);
       await deleteUserData(user.uid);
+      
+      // Also clear localStorage data
+      localStorage.removeItem('sleepHistory');
+      
       setTotalMinutes(0);
       setTimeout(() => {
         hardReload();
@@ -142,6 +192,11 @@ const Profile: React.FC = () => {
       <Typography variant="body1">
         Total Time Slept Today: {formatTime(totalMinutes)}
       </Typography>
+      {dataSource === 'local' && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+          (Data from local storage)
+        </Typography>
+      )}
       <Button variant="contained" color="primary" onClick={() => navigate('/report')}>
         View Report
       </Button>

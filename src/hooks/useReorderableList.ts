@@ -56,6 +56,7 @@ export function useReorderableList<T extends Orderable>(
     hasChanges: pendingChanges.length > 0,
     handleReorder,
     saveReorder,
-    cancelReorder
+    cancelReorder,
+    setItems
   };
 }

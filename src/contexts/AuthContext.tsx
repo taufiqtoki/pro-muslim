@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut as firebaseSignOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { playlistService } from '../services/playlistService.ts';  // Add this import
+import { playlistService } from '../services/playlistService.ts';
 import { userService } from '../services/userService.ts';
+import { unsubscribeAllListeners } from '../utils/firestore.ts';
 
 interface AuthContextType {
   user: User | null;
@@ -25,38 +26,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const auth = getAuth();
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
   };
 
   const signUp = async (email: string, password: string, displayName: string) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(userCredential.user, { displayName });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName });
+    } catch (error) {
+      console.error('Sign up error:', error);
+      throw error;
+    }
   };
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
+    try {
+      // First unsubscribe from all Firestore listeners to prevent "Unexpected state" errors
+      unsubscribeAllListeners();
+      
+      // Then sign out from Firebase
+      await firebaseSignOut(auth);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
+    // Set loading to true initially
+    setLoading(true);
+    
+    // Auth state listener
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
-        if (user) {
-          // Initialize user playlists when user logs in
-          await playlistService.initializeUserPlaylists(user.uid);
-          // Initialize user document when user signs in
-          await userService.initializeUserDocument(user.uid);
+        if (currentUser) {
+          // Wrap initialization in try-catch to prevent uncaught errors
+          try {
+            // Initialize user playlists when user logs in
+            await playlistService.initializeUserPlaylists(currentUser.uid);
+            
+            // Initialize user document when user signs in
+            await userService.initializeUserDocument(currentUser.uid);
+          } catch (initError) {
+            console.error('Error initializing user data:', initError);
+            // Continue despite initialization errors
+          }
+        } else {
+          // When user is null (signed out), clean up all listeners
+          unsubscribeAllListeners();
         }
-        setUser(user);
+        
+        // Always set the user, even if initialization failed
+        setUser(currentUser);
       } catch (error) {
         console.error('Error in auth state change:', error);
+        
+        // Reset state on error
+        setUser(null);
       } finally {
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
-  }, []);
+    // Clean up function - crucial for preventing memory leaks
+    return () => {
+      unsubscribe();
+      // Also clean up any active Firestore listeners on unmount
+      unsubscribeAllListeners();
+    };
+  }, []);  // Empty dependency array means this effect runs once on mount
 
   return (
     <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>

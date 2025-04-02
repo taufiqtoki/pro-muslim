@@ -1,10 +1,26 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { AppBar, Toolbar, IconButton, Typography, Box, Stack, Tooltip, Button, Menu, MenuItem, useTheme as useMuiTheme, useMediaQuery } from "@mui/material";
+import { 
+  AppBar, 
+  Toolbar, 
+  IconButton, 
+  Typography, 
+  Box, 
+  Stack, 
+  Tooltip, 
+  Button, 
+  Menu, 
+  MenuItem, 
+  useTheme as useMuiTheme, 
+  useMediaQuery,
+  Avatar,
+  Container
+} from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import MosqueIcon from '@mui/icons-material/Mosque';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import { useAuth } from '../../hooks/useAuth.ts';
 import BottomNavigation from "../../components/Navigation/BottomNavigation.tsx";
@@ -45,13 +61,7 @@ export const Home: React.FC = () => {
   };
 
   return (
-    <Box 
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-      }}
-    >
+    <Box className="app">
       {/* Hidden audio players */}
       <Box sx={{ display: 'none' }}>
         {/* YouTube player */}
@@ -84,109 +94,175 @@ export const Home: React.FC = () => {
       </Box>
 
       <AppBar 
-        position="static" 
+        position="sticky" 
         elevation={0}
+        className="glass-effect"
         sx={{ 
           bgcolor: 'background.paper',
-          borderBottom: 1,
+          borderBottom: '1px solid',
           borderColor: 'divider',
-          height: '8vh', // Add this line to make height 8% of viewport height
-          minHeight: '48px', // Add minimum height for very small screens
-          '& .MuiToolbar-root': { // Add this to adjust toolbar height
-            minHeight: '100% !important',
-            height: '100%',
-            padding: '0 16px'
-          }
+          height: '64px',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
         }}
       >
-        <Toolbar>
-          <Stack 
-            direction="row" 
-            alignItems="center" 
-            spacing={1} 
-            sx={{ flexGrow: 1 }}
-          >
-            <MosqueIcon sx={{ color: 'text.primary' }} />
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                color: 'text.primary',
-                fontWeight: 500,
-                letterSpacing: 0.5
-              }}
+        <Container maxWidth="lg">
+          <Toolbar disableGutters sx={{ minHeight: '64px' }}>
+            <Stack 
+              direction="row" 
+              alignItems="center" 
+              spacing={1} 
+              sx={{ flexGrow: 1 }}
             >
-              Pro Muslim
-            </Typography>
-          </Stack>
-
-          {user ? (
-            <>
-              <Button
-                onClick={handleMenuOpen}
+              <MosqueIcon sx={{ color: 'primary.main' }} />
+              <Typography 
+                variant="h6" 
                 sx={{ 
                   color: 'text.primary',
-                  textTransform: 'none'
+                  fontWeight: 600,
+                  letterSpacing: '-0.5px'
                 }}
               >
-                {user.displayName}
-              </Button>
-              <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleMenuClose}
-              >
-                <MenuItem onClick={() => { navigate('/profile'); handleMenuClose(); }}>Profile</MenuItem>
-                <MenuItem onClick={handleSignOut}>Sign Out</MenuItem>
-              </Menu>
-            </>
-          ) : (
-            <>
-              <Button
-                onClick={() => {
-                  setIsAuthModalOpen(true);
-                }}
+                Pro Muslim
+              </Typography>
+            </Stack>
+
+            {user ? (
+              <>
+                <Button
+                  onClick={handleMenuOpen}
+                  startIcon={
+                    user.photoURL ? (
+                      <Avatar 
+                        src={user.photoURL} 
+                        alt={user.displayName || 'User'} 
+                        sx={{ width: 32, height: 32 }}
+                      />
+                    ) : (
+                      <AccountCircleIcon />
+                    )
+                  }
+                  sx={{ 
+                    color: 'text.primary',
+                    textTransform: 'none',
+                    borderRadius: 'var(--radius-pill)',
+                    transition: 'var(--transition-normal)',
+                    '&:hover': {
+                      bgcolor: 'action.hover'
+                    }
+                  }}
+                >
+                  {user.displayName}
+                </Button>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleMenuClose}
+                  PaperProps={{
+                    className: 'paper',
+                    elevation: 2,
+                    sx: { 
+                      mt: 1.5, 
+                      minWidth: 180,
+                      borderRadius: 'var(--radius-md)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                    }
+                  }}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  <MenuItem 
+                    onClick={() => { navigate('/profile'); handleMenuClose(); }}
+                    sx={{
+                      borderRadius: 'var(--radius-sm)',
+                      m: 0.5,
+                      py: 1
+                    }}
+                  >
+                    Profile
+                  </MenuItem>
+                  <MenuItem 
+                    onClick={handleSignOut}
+                    sx={{
+                      borderRadius: 'var(--radius-sm)',
+                      m: 0.5,
+                      py: 1
+                    }}
+                  >
+                    Sign Out
+                  </MenuItem>
+                </Menu>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  variant="contained"
+                  sx={{ 
+                    color: 'white',
+                    mr: 1,
+                    borderRadius: 'var(--radius-pill)',
+                    textTransform: 'none',
+                    px: 3,
+                    py: 1,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      boxShadow: 'var(--shadow-sm)'
+                    }
+                  }}
+                >
+                  Sign In
+                </Button>
+              </>
+            )}
+
+            <Tooltip title={isDark ? "Light mode" : "Dark mode"}>
+              <IconButton 
+                onClick={toggleTheme}
                 sx={{ 
                   color: 'text.primary',
-                  mr: 1
+                  mr: 1,
+                  borderRadius: 'var(--radius-md)',
+                  width: 40,
+                  height: 40,
+                  transition: 'var(--transition-normal)'
                 }}
               >
-                Sign In
-              </Button>
-            </>
-          )}
+                {isDark ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
 
-          <Tooltip title={isDark ? "Light mode" : "Dark mode"}>
-            <IconButton 
-              onClick={toggleTheme}
-              sx={{ 
-                color: 'text.primary',
-                mr: 1
-              }}
-            >
-              {isDark ? <LightModeIcon /> : <DarkModeIcon />}
-            </IconButton>
-          </Tooltip>
-
-          <Tooltip title="Settings">
-            <IconButton 
-              onClick={() => navigate('/settings')}
-              sx={{ 
-                color: 'text.primary'
-              }}
-            >
-              <SettingsIcon />
-            </IconButton>
-          </Tooltip>
-        </Toolbar>
+            <Tooltip title="Settings">
+              <IconButton 
+                onClick={() => navigate('/settings')}
+                sx={{ 
+                  color: 'text.primary',
+                  borderRadius: 'var(--radius-md)',
+                  width: 40,
+                  height: 40,
+                  transition: 'var(--transition-normal)'
+                }}
+              >
+                <SettingsIcon />
+              </IconButton>
+            </Tooltip>
+          </Toolbar>
+        </Container>
       </AppBar>
       
-      <Box sx={{ 
-        flex: 1, 
-        pb: 7, 
-        overflow: 'auto',
-        height: '92vh',
-      }}>
-        <Outlet />
+      <Box className="app-wrapper">
+        <Container 
+          maxWidth="lg"
+          component="main" 
+          className="content custom-scrollbar fade-in"
+          sx={{ 
+            pb: 10,
+            pt: 2
+          }}
+        >
+          <Outlet />
+        </Container>
       </Box>
 
       <BottomNavigation />

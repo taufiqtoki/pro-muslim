@@ -1,71 +1,192 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from './useAuth';
+import { PrayerSettings, getPrayerTimes, getUserLocation, reverseGeocode } from '../services/prayerApi';
+import { doc, getDoc, setDoc, onSnapshot, FirestoreError } from 'firebase/firestore';
+import { db } from '../firebase';
 import { addMinutes, subMinutes } from 'date-fns';
-import { getPrayerTimes, PrayerSettings } from '../services/prayerApi.ts';
-import { useAuth } from './useAuth.ts';
-import { doc, onSnapshot, setDoc, FirestoreError } from 'firebase/firestore';
-import { db } from '../firebase.ts';
+import { getFromStorage, saveToStorage, STORAGE_KEYS } from '../utils/localStorage';
 
+// Default prayer settings
 const DEFAULT_SETTINGS: PrayerSettings = {
-  method: 5, // Karachi
+  method: 5, // University of Islamic Sciences, Karachi
   school: 1, // Hanafi
-  location: {
-    city: 'Chittagong Division',
-    country: 'Bangladesh',
-    latitude: 22.356851,
-    longitude: 91.783182
-  },
   adjustments: {
     Fajr: 0,
     Dhuhr: 0,
     Asr: 0,
     Maghrib: 0,
-    Isha: 0,
-    Tahajjud: 0
+    Isha: 0
   },
   jamaatAdjustments: {
     Fajr: 20,
     Dhuhr: 15,
     Asr: 15,
     Maghrib: 5,
-    Isha: 15,
-    Tahajjud: 0
+    Isha: 15
+  },
+  location: {
+    city: 'Chittagong Division',
+    country: 'Bangladesh',
+    latitude: 22.356851,
+    longitude: 91.783182
   }
 };
 
 export const usePrayerTimes = () => {
   const { user } = useAuth();
-  const [prayerTimes, setPrayerTimes] = useState<any>(null);
-  const [jamaatTimes, setJamaatTimes] = useState<any>(null);
+  const [prayerTimes, setPrayerTimes] = useState<{[key: string]: string} | null>(null);
+  const [jamaatTimes, setJamaatTimes] = useState<{[key: string]: string} | null>(null);
   const [settings, setSettings] = useState<PrayerSettings | null>(null);
   const [completed, setCompleted] = useState<{[key: string]: boolean}>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [locationPermissionRequested, setLocationPermissionRequested] = useState<boolean>(false);
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(navigator.onLine);
 
-  // Load settings and calculate times
+  // Handle online/offline status
   useEffect(() => {
-    if (!user) return;
+    const handleOnline = () => setOnlineStatus(true);
+    const handleOffline = () => setOnlineStatus(false);
 
-    const unsubSettings = onSnapshot(doc(db, `users/${user.uid}/settings/prayer`), 
-      async (docSnapshot) => {
-        if (!docSnapshot.exists()) {
-          // If no settings exist, create default settings
-          const settingsDoc = doc(db, `users/${user.uid}/settings/prayer`);
-          await setDoc(settingsDoc, {
-            ...DEFAULT_SETTINGS,
-            createdAt: new Date()
-          });
-          setSettings(DEFAULT_SETTINGS);
-        } else {
-          setSettings(docSnapshot.data() as PrayerSettings);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Detect user location
+  const detectUserLocation = async (): Promise<PrayerSettings> => {
+    try {
+      // Try to get user's geolocation
+      const position = await getUserLocation();
+      const { latitude, longitude } = position.coords;
+      
+      // Get location details from coordinates
+      const locationData = await reverseGeocode(latitude, longitude);
+      
+      // Create settings with detected location
+      return {
+        ...DEFAULT_SETTINGS,
+        location: locationData
+      };
+    } catch (error) {
+      console.error('Location detection error:', error);
+      // Return default settings if location detection fails
+      return DEFAULT_SETTINGS;
+    }
+  };
+
+  // Load settings and prayer times
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    const loadSettings = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Check if we have settings in local storage
+        const localSettings = getFromStorage<PrayerSettings | null>(STORAGE_KEYS.PRAYER_SETTINGS, null);
+        
+        if (localSettings) {
+          // Use local settings immediately
+          setSettings(localSettings);
+          setLoading(false);
         }
+        
+        // If user is logged in and online, try to get settings from Firebase
+        if (user && onlineStatus) {
+          try {
+            unsubscribe = onSnapshot(
+              doc(db, `users/${user.uid}`), 
+              async (docSnapshot) => {
+                if (docSnapshot.exists() && docSnapshot.data().prayerSettings) {
+                  // Save server settings to state and local storage
+                  const serverSettings = docSnapshot.data().prayerSettings as PrayerSettings;
+                  setSettings(serverSettings);
+                  saveToStorage(STORAGE_KEYS.PRAYER_SETTINGS, serverSettings);
+                } else if (!localSettings) {
+                  // If no settings exist anywhere, detect location
+                  if (!locationPermissionRequested) {
+                    setLocationPermissionRequested(true);
+                    const detectedSettings = await detectUserLocation();
+                    
+                    // Save detected settings
+                    setSettings(detectedSettings);
+                    saveToStorage(STORAGE_KEYS.PRAYER_SETTINGS, detectedSettings);
+                    
+                    // Save to Firestore if online
+                    if (onlineStatus) {
+                      try {
+                        await setDoc(doc(db, `users/${user.uid}`), {
+                          prayerSettings: detectedSettings
+                        }, { merge: true });
+                      } catch (err) {
+                        console.error('Error saving detected settings to Firestore:', err);
+                      }
+                    }
+                  }
+                }
+                setLoading(false);
+              }, 
+              (error: FirestoreError) => {
+                console.error('Firestore error:', error);
+                if (localSettings) {
+                  // Still use local settings if available
+                  setSettings(localSettings);
+                } else {
+                  setError('Failed to load prayer settings. Please check your connection.');
+                }
+                setLoading(false);
+              }
+            );
+          } catch (firestoreError) {
+            console.error('Error setting up Firestore listener:', firestoreError);
+            if (localSettings) {
+              // Still use local settings if available
+              setSettings(localSettings);
+            } else {
+              // Last resort - try to detect location
+              try {
+                const detectedSettings = await detectUserLocation();
+                setSettings(detectedSettings);
+                saveToStorage(STORAGE_KEYS.PRAYER_SETTINGS, detectedSettings);
+              } catch (locError) {
+                setError('Failed to get prayer settings. Please check app settings.');
+              }
+            }
+            setLoading(false);
+          }
+        } else if (!localSettings && !onlineStatus) {
+          // Offline with no local settings - try to detect location
+          try {
+            const detectedSettings = await detectUserLocation();
+            setSettings(detectedSettings);
+            saveToStorage(STORAGE_KEYS.PRAYER_SETTINGS, detectedSettings);
+          } catch (err) {
+            setError('Unable to detect location while offline. Please check your settings.');
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Error in loadSettings:', err);
+        setError('An error occurred while setting up prayer times. Please refresh the page.');
         setLoading(false);
-      }, (error: FirestoreError) => {
-        setError(error.message);
-        setLoading(false);
-      });
-
-    return () => unsubSettings();
-  }, [user]);
+      }
+    };
+    
+    loadSettings();
+    
+    // Cleanup function
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [user, onlineStatus, locationPermissionRequested]);
 
   // Calculate prayer times when settings change
   useEffect(() => {
@@ -73,29 +194,91 @@ export const usePrayerTimes = () => {
 
     const calculateTimes = async () => {
       try {
+        setError(null);
         const times = await getPrayerTimes(settings, new Date());
         setPrayerTimes(times);
 
         // Calculate Jamaat times
-        const jamaat: {[key: string]: Date} = {};
+        const jamaat: {[key: string]: string} = {};
         Object.keys(times).forEach(prayer => {
-          const azanTime = new Date(times[prayer]);
-          jamaat[prayer] = addMinutes(azanTime, settings.jamaatAdjustments[prayer] || 0);
+          if (times[prayer] && settings.jamaatAdjustments[prayer] !== undefined) {
+            const azanTime = new Date(times[prayer]);
+            const jamaatTime = addMinutes(azanTime, settings.jamaatAdjustments[prayer]);
+            jamaat[prayer] = jamaatTime.toISOString();
+          }
         });
 
-        // Calculate Tahajjud time as 30 minutes before Fajr
-        if (times.Fajr) {
-          jamaat.Tahajjud = subMinutes(new Date(times.Fajr), 30);
-        }
-
         setJamaatTimes(jamaat);
-      } catch (error) {
-        console.error('Error calculating prayer times:', error);
+      } catch (err) {
+        console.error('Error calculating prayer times:', err);
+        
+        // Try to use cached prayer times if available
+        const cachedTimes = getFromStorage<{[key: string]: string} | null>(`prayer_times_${new Date().toISOString().split('T')[0]}`, null);
+        if (cachedTimes) {
+          setPrayerTimes(cachedTimes);
+          
+          // Calculate jamaat times from cached times
+          const jamaat: {[key: string]: string} = {};
+          Object.keys(cachedTimes).forEach(prayer => {
+            if (cachedTimes[prayer] && settings.jamaatAdjustments[prayer] !== undefined) {
+              const azanTime = new Date(cachedTimes[prayer]);
+              const jamaatTime = addMinutes(azanTime, settings.jamaatAdjustments[prayer]);
+              jamaat[prayer] = jamaatTime.toISOString();
+            }
+          });
+          
+          setJamaatTimes(jamaat);
+        } else {
+          setError('Failed to fetch prayer times. Please check your internet connection.');
+        }
       }
     };
 
     calculateTimes();
   }, [settings]);
+
+  // Load completed prayers
+  useEffect(() => {
+    if (!user || !onlineStatus) return;
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const unsubCompleted = onSnapshot(
+        doc(db, `users/${user.uid}/prayers/${today}`), 
+        (docSnapshot) => {
+          if (docSnapshot.exists()) {
+            setCompleted(docSnapshot.data() as {[key: string]: boolean});
+          } else {
+            setCompleted({});
+          }
+        }, 
+        (err) => {
+          console.error('Error fetching completed prayers:', err);
+          // Use local completed prayers if available
+          const localCompleted = getFromStorage<{[key: string]: boolean} | null>(
+            `completed_prayers_${today}`, 
+            null
+          );
+          if (localCompleted) {
+            setCompleted(localCompleted);
+          }
+        }
+      );
+
+      return () => unsubCompleted();
+    } catch (error) {
+      console.error('Error setting up completed prayers listener:', error);
+      // Try to use local storage as fallback
+      const today = new Date().toISOString().split('T')[0];
+      const localCompleted = getFromStorage<{[key: string]: boolean} | null>(
+        `completed_prayers_${today}`, 
+        null
+      );
+      if (localCompleted) {
+        setCompleted(localCompleted);
+      }
+    }
+  }, [user, onlineStatus]);
 
   return { prayerTimes, jamaatTimes, settings, completed, loading, error };
 };

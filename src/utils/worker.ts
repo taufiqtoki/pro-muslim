@@ -26,8 +26,8 @@ export const workerCode = () => {
               formatted: formatDuration(totalSeconds)
             }
           });
-        } catch (error) {
-          self.postMessage({ error: error.message });
+        } catch (error: unknown) {
+          self.postMessage({ error: error instanceof Error ? error.message : 'Unknown error' });
         }
         break;
 
@@ -35,7 +35,7 @@ export const workerCode = () => {
         try {
           const { tracks } = payload;
           // Process tracks in background
-          const processedTracks = tracks.map(track => ({
+          const processedTracks = tracks.map((track: { [key: string]: any }) => ({
             ...track,
             processedAt: Date.now()
           }));
@@ -44,8 +44,8 @@ export const workerCode = () => {
             type: 'TRACKS_PROCESSED',
             payload: processedTracks
           });
-        } catch (error) {
-          self.postMessage({ error: error.message });
+        } catch (error: unknown) {
+          self.postMessage({ error: error instanceof Error ? error.message : 'Unknown error' });
         }
         break;
     }
@@ -69,9 +69,19 @@ export const workerCode = () => {
 };
 
 // Type definitions for better TypeScript support
+export interface ProcessTrackPayload {
+  tracks: Array<{ [key: string]: any }>;
+}
+
+export interface ParseDurationPayload {
+  raw: string;
+}
+
+export type WorkerPayload = ProcessTrackPayload | ParseDurationPayload;
+
 export type WorkerMessage = {
   type: 'PARSE_DURATION' | 'PROCESS_TRACKS';
-  payload: any;
+  payload: WorkerPayload;
 };
 
 export type WorkerResponse = {

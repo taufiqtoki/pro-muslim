@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, IconButton, Tabs, Tab, Box, Divider, TextField, Button, CircularProgress, Alert } from '@mui/material';
+import React, { useState, useEffect, ReactNode } from 'react';
+import { Container, Typography, IconButton, Tabs, Tab, Box, Divider, Button, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from 'react-router-dom';
-import { TasbeehSettings } from '../components/settings/TasbeehSettings.tsx';
+import TasbeehSettings from '../components/settings/TasbeehSettings.tsx';
 import { PrayerSettings } from './settings/PrayerSettings.tsx';
 import { db } from '../firebase.ts';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth.ts';
 import ConfirmationModal from '../components/ConfirmationModal.tsx';
 import { hardReload } from '../utils/reload.ts';
 import { clearAppStorage } from '../utils/storage.ts';
+import { getFromStorage, saveToStorage, STORAGE_KEYS } from '../utils/localStorage';
 
 interface TabPanelProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   index: number;
   value: number;
 }
@@ -35,23 +36,68 @@ const Settings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [clearDataModalOpen, setClearDataModalOpen] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(navigator.onLine);
 
   useEffect(() => {
-    if (!user) return;
+    // Monitor online status
+    const handleOnline = () => setOnlineStatus(true);
+    const handleOffline = () => setOnlineStatus(false);
 
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchSettings = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
-        const settingsDoc = await getDoc(doc(db, `users/${user.uid}/settings/default`));
-        setSettings(settingsDoc.data());
+        // Try to load from local storage first for immediate display
+        const localSettings = getFromStorage(STORAGE_KEYS.SETTINGS, null);
+        
+        if (localSettings) {
+          setSettings(localSettings);
+        }
+        
+        // If online, try to fetch from Firestore and update local
+        if (onlineStatus && user) {
+          const userRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
+          
+          if (userDoc.exists() && userDoc.data().settings) {
+            const serverSettings = userDoc.data().settings;
+            setSettings(serverSettings);
+            
+            // Update local storage with server data
+            saveToStorage(STORAGE_KEYS.SETTINGS, serverSettings);
+          } else if (localSettings) {
+            // If no server data but we have local data, sync it to server
+            await setDoc(doc(db, 'users', user.uid), { 
+              settings: localSettings 
+            }, { merge: true });
+          }
+        }
       } catch (error) {
-        setError('Failed to fetch settings');
+        console.error('Error fetching settings:', error);
+        if (!onlineStatus) {
+          setError('You are currently offline. Settings loaded from local storage.');
+        } else {
+          setError('Failed to load settings from server. Using local settings if available.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchSettings();
-  }, [user]);
+  }, [user, onlineStatus]);
 
   const handleSave = async () => {
     if (!user || !settings) return;
@@ -84,6 +130,33 @@ const Settings: React.FC = () => {
     setClearDataModalOpen(false);
   };
 
+  const handleChange = (event: React.SyntheticEvent, newValue: number) => {
+    setValue(newValue);
+  };
+
+  const handleClearDataDialog = async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Clear local storage but keep important user data
+        const theme = localStorage.getItem(STORAGE_KEYS.THEME);
+        const userPrefs = localStorage.getItem(STORAGE_KEYS.USER_PREFERENCES);
+        
+        localStorage.clear();
+        
+        // Restore important user data
+        if (theme) localStorage.setItem(STORAGE_KEYS.THEME, theme);
+        if (userPrefs) localStorage.setItem(STORAGE_KEYS.USER_PREFERENCES, userPrefs);
+        
+        setSuccess('Local data cleared successfully');
+      } catch (error) {
+        console.error('Error clearing data:', error);
+        setError('Failed to clear local data');
+      }
+      
+      setOpenDialog(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -112,12 +185,19 @@ const Settings: React.FC = () => {
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 2 }}>
-        <Tabs value={value} onChange={(_, newValue) => setValue(newValue)}>
+        <Tabs value={value} onChange={handleChange}>
           <Tab label="Tasbeehs" />
           <Tab label="Prayer Times" />
           <Tab label="General" />
         </Tabs>
       </Box>
+
+      {/* Offline indicator */}
+      {!onlineStatus && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          You are currently offline. Changes will be saved locally and synced when you&apos;re back online.
+        </Alert>
+      )}
 
       <TabPanel value={value} index={0}>
         <TasbeehSettings />
@@ -127,63 +207,14 @@ const Settings: React.FC = () => {
       </TabPanel>
       <TabPanel value={value} index={2}>
         <Box p={3}>
-          <Typography variant="h5" gutterBottom>Settings</Typography>
-          <TextField
-            label="Fajr Jamaat Time"
-            type="time"
-            value={settings?.fajr || ''}
-            onChange={(e) => setSettings({ ...settings, fajr: e.target.value })}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Dhuhr Jamaat Time"
-            type="time"
-            value={settings?.dhuhr || ''}
-            onChange={(e) => setSettings({ ...settings, dhuhr: e.target.value })}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Asr Jamaat Time"
-            type="time"
-            value={settings?.asr || ''}
-            onChange={(e) => setSettings({ ...settings, asr: e.target.value })}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Maghrib Jamaat Time"
-            type="time"
-            value={settings?.maghrib || ''}
-            onChange={(e) => setSettings({ ...settings, maghrib: e.target.value })}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Isha Jamaat Time"
-            type="time"
-            value={settings?.isha || ''}
-            onChange={(e) => setSettings({ ...settings, isha: e.target.value })}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Tahajjud Time"
-            type="time"
-            value={settings?.tahajjud || ''}
-            onChange={(e) => setSettings({ ...settings, tahajjud: e.target.value })}
-            fullWidth
-            margin="normal"
-          />
-          <Button variant="contained" color="primary" onClick={handleSave} sx={{ mt: 2 }}>
-            Save
-          </Button>
+          <Typography variant="h5" gutterBottom>General Settings</Typography>
+          
           {success && (
-            <Box mt={2}>
+            <Box mt={2} mb={2}>
               <Alert severity="success">{success}</Alert>
             </Box>
           )}
+          
           <Divider sx={{ my: 3 }} />
           <Typography variant="h6" color="error" gutterBottom>
             Danger Zone
@@ -191,22 +222,36 @@ const Settings: React.FC = () => {
           <Button
             variant="outlined"
             color="error"
-            onClick={() => setClearDataModalOpen(true)}
+            onClick={() => setOpenDialog(true)}
             sx={{ mt: 2 }}
           >
-            Clear Site Data & Cache
+            Clear Site Data
           </Button>
         </Box>
       </TabPanel>
 
-      <ConfirmationModal
-        open={clearDataModalOpen}
-        onClose={() => setClearDataModalOpen(false)}
-        onConfirm={handleClearSiteData}
-        title="Clear Site Data"
-        message="This will clear all locally stored data and cache. The app will return to its initial state. This action cannot be undone."
-        confirmText="Clear Data"
-      />
+      <Dialog
+        open={openDialog}
+        onClose={() => setOpenDialog(false)}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">
+          Clear All Site Data?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            This will clear all locally stored data including your saved settings and cached information.
+            Your account and online data will not be affected. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button onClick={handleClearDataDialog} autoFocus color="error">
+            Clear Data
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

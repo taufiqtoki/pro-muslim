@@ -10,7 +10,9 @@
     // ...existing rules...
     "no-console": "off", // Example: Ignore console statements
     "@typescript-eslint/no-explicit-any": "off", // Example: Allow usage of 'any' type
-    "react/prop-types": "off" // Example: Disable prop-types rule for React components
+    "react/prop-types": "off", // Example: Disable prop-types rule for React components
+    "react/no-unescaped-entities": "off", // Disable unescaped entities warning
+    "@typescript-eslint/no-empty-function": "off" // Allow empty arrow functions
   },
   "overrides": [
     {

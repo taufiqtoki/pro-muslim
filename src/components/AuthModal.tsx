@@ -60,67 +60,86 @@ const AuthModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onC
     }
   };
 
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (tab === 0) {
+      handleLogin();
+    } else {
+      handleSignUp();
+    }
+  };
+
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>{tab === 0 ? 'Login' : 'Sign Up'}</DialogTitle>
+      <DialogTitle>{tab === 0 ? 'লগইন' : 'নিবন্ধন করুন'}</DialogTitle>
       <Tabs value={tab} onChange={(_, newValue) => setTab(newValue)} centered>
-        <Tab label="Login" />
-        <Tab label="Sign Up" />
+        <Tab label="লগইন" />
+        <Tab label="নিবন্ধন" />
       </Tabs>
-      <DialogContent>
-        {tab === 1 && (
+      <form onSubmit={handleSubmit}>
+        <DialogContent>
+          {tab === 1 && (
+            <TextField
+              autoFocus
+              margin="dense"
+              label="পূর্ণ নাম"
+              type="text"
+              fullWidth
+              value={fullName}
+              onChange={handleFullNameChange}
+              required
+            />
+          )}
           <TextField
-            autoFocus
             margin="dense"
-            label="Full Name"
-            type="text"
+            label="ইমেইল ঠিকানা"
+            type="email"
             fullWidth
-            value={fullName}
-            onChange={handleFullNameChange}
+            value={email}
+            onChange={handleEmailChange}
+            required
           />
-        )}
-        <TextField
-          margin="dense"
-          label="Email Address"
-          type="email"
-          fullWidth
-          value={email}
-          onChange={handleEmailChange}
-        />
-        <TextField
-          margin="dense"
-          label="Password"
-          type="password"
-          fullWidth
-          value={password}
-          onChange={handlePasswordChange}
-        />
-        {tab === 1 && (
           <TextField
             margin="dense"
-            label="Confirm Password"
+            label="পাসওয়ার্ড"
             type="password"
             fullWidth
-            value={confirmPassword}
-            onChange={handleConfirmPasswordChange}
+            value={password}
+            onChange={handlePasswordChange}
+            required
           />
-        )}
-        {tab === 0 && (
-          <Box mt={2}>
-            <Button variant="contained" color="primary" fullWidth onClick={handleGoogleSignIn}>
-              Sign in with Google
-            </Button>
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        {tab === 0 ? (
-          <Button onClick={handleLogin}>Login</Button>
-        ) : (
-          <Button onClick={handleSignUp}>Sign Up</Button>
-        )}
-      </DialogActions>
+          {tab === 1 && (
+            <TextField
+              margin="dense"
+              label="পাসওয়ার্ড নিশ্চিত করুন"
+              type="password"
+              fullWidth
+              value={confirmPassword}
+              onChange={handleConfirmPasswordChange}
+              required
+            />
+          )}
+          {tab === 0 && (
+            <Box mt={2}>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                fullWidth 
+                type="button"
+                onClick={handleGoogleSignIn}
+              >
+                Google দিয়ে লগইন করুন
+              </Button>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose} type="button">বাতিল করুন</Button>
+          <Button type="submit">
+            {tab === 0 ? 'লগইন করুন' : 'নিবন্ধন করুন'}
+          </Button>
+        </DialogActions>
+      </form>
     </Dialog>
   );
 };

@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Typography, IconButton, Stack, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
+import { 
+  Typography, 
+  IconButton, 
+  Stack, 
+  Box, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  Button,
+  Fab,
+  Tooltip
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
@@ -9,15 +21,18 @@ import CalculateIcon from '@mui/icons-material/Calculate';
 import TimerIcon from '@mui/icons-material/Timer';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import CloseIcon from '@mui/icons-material/Close';
+import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import Calculator from './Calculator.tsx';
 import Timer from './Timer.tsx';
 import { useStopwatch } from '../contexts/StopwatchContext.tsx';
+import { useTheme } from '../contexts/ThemeContext.tsx';
 
 const Stopwatch: React.FC = () => {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const navigate = useNavigate();
   const { time, isRunning, isStopped, handlePlayPause, handleStop, handleReset } = useStopwatch();
+  const { isDark } = useTheme();
 
   const formatTime = (ms: number) => {
     const hours = Math.floor(ms / 3600000);
@@ -48,98 +63,219 @@ const Stopwatch: React.FC = () => {
 
   return (
     <>
-      <Paper 
-        elevation={3} 
-        sx={{ 
-          p: 2,
-        }}
-      >
-        <Typography variant="h6" color="text.secondary" gutterBottom sx={{ mb: 1 }}>
-          Stopwatch
-        </Typography>
-        <Typography 
-          variant="h2" 
-          sx={{ 
-            fontWeight: 700,
-            fontSize: { xs: '1.8rem', sm: '2.2rem' },
-            fontFamily: 'monospace',
-            mb: 1
+      <Box>
+        <Box
+          sx={{
+            textAlign: 'center',
+            mb: 3,
+            position: 'relative'
           }}
         >
-          {formatTime(time)}
-        </Typography>
-        <Stack direction="row" spacing={1} justifyContent="center">
-          {!isStopped && (
-            <IconButton onClick={handlePlayPause} color="primary" size="small">
-              {isRunning ? <PauseIcon /> : <PlayArrowIcon />}
-            </IconButton>
-          )}
-          {(isRunning || (!isRunning && !isStopped)) && (
-            <IconButton onClick={handleStop} color="error" size="small">
-              <StopIcon />
-            </IconButton>
-          )}
-          <IconButton onClick={handleReset} color="secondary" size="small">
-            <RestartAltIcon />
-          </IconButton>
-          <IconButton
-            onClick={() => setIsCalculatorOpen(true)}
-            color="default"
-            size="small"
+          <Typography 
+            variant="h1" 
+            sx={{ 
+              fontWeight: 700,
+              fontSize: { xs: '2.5rem', sm: '3.5rem', md: '4rem' },
+              fontFamily: 'var(--font-display)',
+              letterSpacing: '-1px',
+              color: isRunning 
+                ? 'primary.main' 
+                : (isStopped ? 'error.main' : 'text.primary'),
+              transition: 'color 0.3s ease',
+              mb: 2,
+              textShadow: isRunning 
+                ? (isDark ? '0 0 10px rgba(var(--primary-rgb), 0.5)' : '0 0 15px rgba(var(--primary-rgb), 0.3)')
+                : 'none'
+            }}
           >
-            <CalculateIcon />
-          </IconButton>
-          <IconButton
-            onClick={() => setIsTimerOpen(true)}
-            color="default"
-            size="small"
+            {formatTime(time)}
+          </Typography>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 3 }}>
+            {!isStopped && (
+              <Fab 
+                onClick={handlePlayPause} 
+                color={isRunning ? "default" : "primary"}
+                size="medium"
+                sx={{ 
+                  boxShadow: isRunning ? 'none' : 'var(--shadow-md)',
+                  bgcolor: isRunning ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') : undefined
+                }}
+              >
+                {isRunning ? <PauseIcon /> : <PlayArrowIcon />}
+              </Fab>
+            )}
+            
+            {(isRunning || (!isRunning && !isStopped)) && (
+              <Fab 
+                onClick={handleStop} 
+                color="error"
+                size="medium"
+                sx={{ boxShadow: 'var(--shadow-md)' }}
+              >
+                <StopIcon />
+              </Fab>
+            )}
+            
+            <Fab 
+              onClick={handleReset} 
+              color="default"
+              size="medium"
+              sx={{ 
+                boxShadow: 'var(--shadow-md)',
+                bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+              }}
+            >
+              <RestartAltIcon />
+            </Fab>
+          </Box>
+          
+          <Typography 
+            variant="caption" 
+            color="text.secondary"
+            sx={{ 
+              display: 'block', 
+              mb: 3,
+              fontStyle: 'italic'
+            }}
           >
-            <TimerIcon />
-          </IconButton>
-          <IconButton
-            onClick={() => navigate('/player')}
-            color="default"
-            size="small"
+            Tip: Press spacebar to play/pause, &apos;S&apos; to stop, &apos;R&apos; to reset
+          </Typography>
+          
+          <Stack 
+            direction="row" 
+            spacing={1} 
+            justifyContent="center"
+            sx={{
+              p: 2,
+              borderRadius: 'var(--radius-md)',
+              bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+              display: 'inline-flex'
+            }}
           >
-            <MusicNoteIcon />
-          </IconButton>
-        </Stack>
-      </Paper>
+            <Tooltip title="Calculator">
+              <IconButton
+                onClick={() => setIsCalculatorOpen(true)}
+                sx={{ 
+                  borderRadius: 'var(--radius-md)',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    color: 'primary.main'
+                  }
+                }}
+              >
+                <CalculateIcon />
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title="Timer">
+              <IconButton
+                onClick={() => setIsTimerOpen(true)}
+                sx={{ 
+                  borderRadius: 'var(--radius-md)',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    color: 'primary.main'
+                  }
+                }}
+              >
+                <TimerIcon />
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title="Music Player">
+              <IconButton
+                onClick={() => navigate('/player')}
+                sx={{ 
+                  borderRadius: 'var(--radius-md)',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    color: 'primary.main'
+                  }
+                }}
+              >
+                <MusicNoteIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Box>
+      </Box>
 
-      <Dialog open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          Calculator
-          <IconButton
-            aria-label="close"
-            onClick={() => setIsCalculatorOpen(false)}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            <CloseIcon />
-          </IconButton>
+      <Dialog 
+        open={isCalculatorOpen} 
+        onClose={() => setIsCalculatorOpen(false)} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 'var(--radius-md)',
+            overflowY: 'visible'
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Calculator
+            </Typography>
+            <IconButton
+              aria-label="close"
+              onClick={() => setIsCalculatorOpen(false)}
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': {
+                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  color: 'error.main'
+                }
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Stack>
         </DialogTitle>
         <DialogContent>
           <Calculator />
         </DialogContent>
-        <DialogActions>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={isTimerOpen} onClose={() => setIsTimerOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          Timer
-          <IconButton
-            aria-label="close"
-            onClick={() => setIsTimerOpen(false)}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            <CloseIcon />
-          </IconButton>
+      <Dialog 
+        open={isTimerOpen} 
+        onClose={() => setIsTimerOpen(false)} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 'var(--radius-md)',
+            overflowY: 'visible'
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Timer
+            </Typography>
+            <IconButton
+              aria-label="close"
+              onClick={() => setIsTimerOpen(false)}
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': {
+                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  color: 'error.main'
+                }
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Stack>
         </DialogTitle>
         <DialogContent>
           <Timer />
         </DialogContent>
-        <DialogActions>
-        </DialogActions>
       </Dialog>
     </>
   );
