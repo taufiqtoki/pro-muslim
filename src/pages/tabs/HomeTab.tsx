@@ -105,7 +105,7 @@ const HomeTab: React.FC = () => {
   const MobileLayout = () => (
     <Grid container spacing={3}>
       <Grid item xs={12}>
-        <SimpleCard height="160px">
+        <SimpleCard height="140px">
           <ClockWidget />
         </SimpleCard>
       </Grid>
@@ -143,7 +143,7 @@ const HomeTab: React.FC = () => {
       <Grid item md={6}>
         <Grid container spacing={3}>
           <Grid item md={12}>
-            <SimpleCard height="180px">
+            <SimpleCard height="140px">
               <ClockWidget />
             </SimpleCard>
           </Grid>

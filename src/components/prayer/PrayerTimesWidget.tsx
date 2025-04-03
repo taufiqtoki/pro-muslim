@@ -6,7 +6,6 @@ import {
   CircularProgress,
   Alert,
   Stack,
-  Badge,
   Button,
   IconButton,
   useMediaQuery,
@@ -17,8 +16,6 @@ import { usePrayerTimes } from '../../hooks/usePrayerTimes';
 import { useAuth } from '../../hooks/useAuth';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import MosqueIcon from '@mui/icons-material/Mosque';
-import DoneIcon from '@mui/icons-material/Done';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
@@ -35,7 +32,15 @@ const PrayerTimesWidget: React.FC = () => {
   const { user } = useAuth();
   const { prayerTimes, jamaatTimes, settings, completed, loading, error } = usePrayerTimes();
   const [remainingTime, setRemainingTime] = useState<{ hours: number, minutes: number } | null>(null);
+  const [localCompleted, setLocalCompleted] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
+
+  // Initialize localCompleted with the value from usePrayerTimes hook
+  useEffect(() => {
+    if (completed) {
+      setLocalCompleted(completed);
+    }
+  }, [completed]);
 
   // Calculate time remaining until next prayer
   useEffect(() => {
@@ -59,16 +64,16 @@ const PrayerTimesWidget: React.FC = () => {
   }, [jamaatTimes]);
 
   const handlePrayerComplete = async (prayer: string) => {
-    const newCompletedState = !completed[prayer];
+    const newCompletedState = !localCompleted[prayer];
     
-    // Update local state immediately
-    const newCompleted = { ...completed, [prayer]: newCompletedState };
+    // Update local state immediately for instant UI feedback
+    setLocalCompleted(prev => ({ ...prev, [prayer]: newCompletedState }));
     
     try {
       const date = new Date().toISOString().split('T')[0];
       
       // Save to local storage
-      saveToStorage(`completed_prayers_${date}`, newCompleted);
+      saveToStorage(`completed_prayers_${date}`, {...localCompleted, [prayer]: newCompletedState});
       
       // If user is logged in and online, update Firestore
       if (user && navigator.onLine) {
@@ -79,6 +84,8 @@ const PrayerTimesWidget: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating prayer status:', error);
+      // Revert local state on error
+      setLocalCompleted(prev => ({ ...prev, [prayer]: !newCompletedState }));
     }
   };
 
@@ -136,7 +143,7 @@ const PrayerTimesWidget: React.FC = () => {
 
   const renderPrayerTime = (prayer: string, time: string | null) => {
     const isActive = getActiveTimeStatus(prayer, time);
-    const isPrayed = completed[prayer] || false;
+    const isPrayed = localCompleted[prayer] || false;
     const timePassed = isPrayerTimePassed(time);
 
     return (
@@ -146,7 +153,7 @@ const PrayerTimesWidget: React.FC = () => {
           borderRadius: 'var(--radius-md)',
           bgcolor: isActive 
             ? 'rgba(var(--primary-rgb), 0.1)' 
-            : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+            : 'transparent',
           border: '1px solid',
           borderColor: isActive 
             ? 'primary.main' 
@@ -171,7 +178,7 @@ const PrayerTimesWidget: React.FC = () => {
           sx={{
             position: 'absolute',
             top: 6,
-            left: 6,
+            right: 6,
             opacity: timePassed ? 1 : 0.5,
             color: isPrayed ? 'success.main' : 'text.secondary',
             p: 0.5
@@ -188,7 +195,7 @@ const PrayerTimesWidget: React.FC = () => {
           sx={{ 
             color: 'text.secondary',
             mb: 0.5,
-            ml: 4,
+            ml: 2,
             alignSelf: 'flex-start',
             fontWeight: 500,
             textTransform: 'uppercase',
@@ -265,13 +272,6 @@ const PrayerTimesWidget: React.FC = () => {
     );
   }
 
-  // Determine grid sizes based on screen size
-  const getGridSize = () => {
-    if (isLargeScreen) return 4; // 3 blocks in a row on large screens
-    if (isTabletScreen) return 4; // 3 blocks in a row on tablets
-    return 6; // 2 blocks in a row on mobile
-  };
-
   const tahajjudTime = prayerTimes?.Fajr ? subMinutes(new Date(prayerTimes.Fajr), 30).toISOString() : null;
   const currentOrNext = getCurrentOrNextPrayer();
 
@@ -283,35 +283,36 @@ const PrayerTimesWidget: React.FC = () => {
         justifyContent="space-between"
         sx={{ mb: 1 }}
       >
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <MosqueIcon color="primary" />
-          <Typography 
-            variant="h6" 
-            component="h2"
-            sx={{ 
-              fontWeight: 600,
-              letterSpacing: '-0.5px'
-            }}
-          >
-            Prayer Times
-          </Typography>
-        </Stack>
-        
-        <Button
-          size="small"
-          startIcon={<SettingsIcon />}
-          onClick={() => navigate('/settings')}
-          variant="outlined"
-          sx={{ borderRadius: 'var(--radius-pill)', py: 0.5 }}
+        <Typography 
+          variant="h6" 
+          component="h2"
+          sx={{ 
+            fontWeight: 600,
+            letterSpacing: '-0.5px'
+          }}
         >
-          Settings
-        </Button>
+          Prayer Times
+        </Typography>
+        
+        <IconButton
+          onClick={() => navigate('/settings')}
+          size="small"
+          sx={{ 
+            color: 'primary.main',
+            bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(var(--primary-rgb), 0.05)',
+            '&:hover': {
+              bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.2)' : 'rgba(var(--primary-rgb), 0.1)'
+            }
+          }}
+        >
+          <SettingsIcon fontSize="small" />
+        </IconButton>
       </Stack>
 
       {settings?.location && (
         <Box 
           sx={{ 
-            mb: 1,
+            mb: 1.5,
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
@@ -332,35 +333,28 @@ const PrayerTimesWidget: React.FC = () => {
             p: 1.5, 
             mb: 2, 
             borderRadius: 'var(--radius-md)', 
-            bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(var(--primary-rgb), 0.05)',
+            bgcolor: 'transparent',
             border: '1px solid',
             borderColor: 'primary.main',
           }}
         >
-          <Stack 
-            direction={{ xs: 'column', sm: 'row' }}
-            alignItems={{ xs: 'flex-start', sm: 'center' }}
-            justifyContent="space-between"
-            spacing={1}
-            sx={{ width: '100%' }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography variant="body1" component="h3" color="primary.main" sx={{ fontWeight: 600 }}>
-                Next prayer in {remainingTime.hours.toString().padStart(2, '0')}h:{remainingTime.minutes.toString().padStart(2, '0')}m
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
-              <Typography variant="body2" color="text.secondary">
-                {currentOrNext.status === 'upcoming' ? 'Next Prayer' : 'Tomorrow\'s Fajr'}
-              </Typography>
-              <Typography variant="body1" color="primary.main" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                {currentOrNext.name}
-                <Typography variant="body2" component="span" color="text.secondary" sx={{ ml: 1 }}>
-                  @: {format(currentOrNext.time, 'hh:mm a')}
-                </Typography>
-              </Typography>
-            </Box>
-          </Stack>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            flexWrap: 'wrap'
+          }}>
+            <Typography 
+              variant="body1" 
+              color="primary.main" 
+              sx={{ 
+                fontWeight: 700,
+                fontSize: { xs: '0.9rem', sm: '1rem' } 
+              }}
+            >
+              Be Ready for <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{currentOrNext.name}</Box> in <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{remainingTime.hours.toString().padStart(2, '0')}:{remainingTime.minutes.toString().padStart(2, '0')}</Box>
+            </Typography>
+          </Box>
         </Box>
       )}
 
