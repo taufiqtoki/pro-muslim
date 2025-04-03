@@ -17,7 +17,6 @@ import {
   Container
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
-import MosqueIcon from '@mui/icons-material/Mosque';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -60,38 +59,13 @@ export const Home: React.FC = () => {
     }
   };
 
+  // Navigate to home tab
+  const goToHome = () => {
+    navigate('/');
+  };
+
   return (
     <Box className="app">
-      {/* Hidden audio players */}
-      <Box sx={{ display: 'none' }}>
-        {/* YouTube player */}
-        {currentTrack?.type === 'youtube' && (
-          <YouTube
-            videoId={currentTrack.videoId}
-            ref={youtubeRef}
-            opts={{
-              height: '1',
-              width: '1',
-              playerVars: {
-                autoplay: isPlaying ? 1 : 0,
-                controls: 0,
-                modestbranding: 1,
-                rel: 0,
-                showinfo: 0,
-                iv_load_policy: 3,
-                enablejsapi: 1,
-                playsinline: 1
-              },
-            }}
-            onStateChange={handleYoutubeStateChange}
-          />
-        )}
-        {/* Audio element */}
-        <audio
-          ref={audioRef}
-          onEnded={handleNextTrack}
-        />
-      </Box>
 
       <AppBar 
         position="sticky" 
@@ -99,33 +73,61 @@ export const Home: React.FC = () => {
         className="glass-effect"
         sx={{ 
           bgcolor: 'background.paper',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          height: '64px',
+          height: '50px',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
         }}
       >
         <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ minHeight: '64px' }}>
-            <Stack 
-              direction="row" 
-              alignItems="center" 
-              spacing={1} 
-              sx={{ flexGrow: 1 }}
+          <Toolbar 
+            disableGutters 
+            sx={{ 
+              minHeight: '50px !important',
+              px: { xs: 0.75, sm: 1 },
+              py: 0.5
+            }}
+          >
+            <Box 
+              onClick={goToHome}
+              sx={{ 
+                flexGrow: 1,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                '&:hover': {
+                  opacity: 0.9
+                }
+              }}
             >
-              <MosqueIcon sx={{ color: 'primary.main' }} />
+              <Box 
+                component="img"
+                src={process.env.PUBLIC_URL + '/pro-muslim192.png'}
+                alt="Pro Muslim Logo"
+                sx={{ 
+                  width: 42,
+                  height: 42,
+                  objectFit: 'contain',
+                  alignSelf: 'center',
+                  mb : 1.5
+                  
+                }}
+              />
               <Typography 
-                variant="h6" 
+                variant="h4"
                 sx={{ 
                   color: 'text.primary',
-                  fontWeight: 600,
-                  letterSpacing: '-0.5px'
+                  fontWeight: 700,
+                  letterSpacing: '-0.5px',
+                  fontSize: { xs: '1rem', sm: '1.75rem' },
+                  alignSelf: 'center',
+                  mt: 1
+                  
                 }}
               >
                 Pro Muslim
               </Typography>
-            </Stack>
+            </Box>
 
             {user ? (
               <>

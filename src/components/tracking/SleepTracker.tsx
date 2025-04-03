@@ -145,128 +145,224 @@ const SleepTracker: React.FC = () => {
 
   return (
     <Box sx={{ position: 'relative' }}>
-      {/* Compact View */}
+      {/* Compact View - New Horizontal Design */}
       <Paper 
         elevation={0} 
         sx={{ 
-          p: 2,
+
           borderRadius: 2,
           background: isDark ? 'rgba(18, 18, 18, 0.4)' : 'rgba(255, 255, 255, 0.6)',
-          border: '1px solid',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between'
         }}
       >
-        <Grid container spacing={2} alignItems="center">
-          {/* Time inputs */}
-          <Grid item xs={12} sm={7}>
-            <Stack direction="row" spacing={1} sx={{ width: '100%' }}>
+        {/* Header with Title and Sleep Quality */}
+        <Stack 
+          direction="row" 
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 1 }}
+        >
+          <Stack direction="row" spacing={1} alignItems="center">
+            <BedtimeIcon 
+              color="primary" 
+              fontSize="small" 
+              sx={{ 
+                animation: totalMinutes > 0 ? 'pulse 1.5s infinite ease-in-out' : 'none',
+                '@keyframes pulse': {
+                  '0%': { opacity: 0.6 },
+                  '50%': { opacity: 1 },
+                  '100%': { opacity: 0.6 }
+                }
+              }} 
+            />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Sleep | {getHumanReadableSleepTime()}
+            </Typography>
+          </Stack>
+          
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip 
+              label={getSleepQuality().text}
+              size="small"
+              sx={{ 
+                height: 20,
+                fontSize: '0.65rem',
+                color: getSleepQuality().color,
+                bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                fontWeight: 600
+              }}
+            />
+            <IconButton
+              size="small"
+              onClick={() => setHistoryOpen(true)}
+              sx={{ 
+                p: 0.5,
+                color: 'primary.main'
+              }}
+            >
+              <HistoryIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </Stack>
+        
+        {/* Main Content - Time Input Controls */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            gap: 1.5
+          }}
+        >
+          {/* Time Controls */}
+          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ position: 'relative', flexGrow: 1 }}>
               <TextField
-                label="Start"
+                placeholder="Start"
                 type="time"
                 size="small"
                 fullWidth
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                sx={{ 
+                  "& .MuiInputBase-root": { height: 36 },
+                  "& .MuiInputBase-input": { py: 0.75, px: 1 }
+                }}
               />
+              <Typography
+                variant="caption"
+                sx={{
+                  position: 'absolute',
+                  top: -8,
+                  left: 8,
+                  backgroundColor: isDark ? 'rgba(18, 18, 18, 0.8)' : 'white',
+                  px: 0.5,
+                  fontSize: '0.65rem',
+                  color: 'text.secondary'
+                }}
+              >
+                Start
+              </Typography>
+            </Box>
+            
+            <Box sx={{ position: 'relative', flexGrow: 1 }}>
               <TextField
-                label="End"
+                placeholder="End"
                 type="time"
                 size="small"
                 fullWidth
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                sx={{ 
+                  "& .MuiInputBase-root": { height: 36 },
+                  "& .MuiInputBase-input": { py: 0.75, px: 1 }
+                }}
               />
-              <Button 
-                variant="contained" 
-                onClick={handleAddSleep}
-                disabled={!startTime || !endTime}
-                size="small"
-                sx={{ minWidth: '80px' }}
+              <Typography
+                variant="caption"
+                sx={{
+                  position: 'absolute',
+                  top: -8,
+                  left: 8,
+                  backgroundColor: isDark ? 'rgba(18, 18, 18, 0.8)' : 'white',
+                  px: 0.5,
+                  fontSize: '0.65rem',
+                  color: 'text.secondary'
+                }}
               >
-                {editIndex !== null ? 'Update' : 'Add'}
-              </Button>
-            </Stack>
-          </Grid>
+                End
+              </Typography>
+            </Box>
+          </Box>
           
-          {/* Summary */}
-          <Grid item xs={12} sm={5}>
-            <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Total Sleep
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', lineHeight: 1.2 }}>
-                  {getHumanReadableSleepTime()}
-                  <Box component="span" sx={{ 
-                    ml: 2, 
-                    display: 'inline-flex', 
-                    gap: 1.5, 
-                    color: 'text.secondary',
-                    fontSize: 'inherit',
-                    alignItems: 'center'
-                  }}>
-                    <Box 
-                      component="span" 
-                      onClick={() => {
-                        const now = new Date();
-                        const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                        setStartTime(timeString);
-                        localStorage.setItem('tempSleepStart', timeString);
-                      }}
-                      sx={{ 
-                        cursor: 'pointer',
-                        '&:hover': { color: 'primary.main' },
-                        transition: 'color 0.2s'
-                      }}
-                    >
-                      {'{'} 
-                    </Box>
-                    <Box 
-                      component="span" 
-                      onClick={() => {
-                        const now = new Date();
-                        const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                        setEndTime(timeString);
-                        localStorage.setItem('tempSleepEnd', timeString);
-                      }}
-                      sx={{ 
-                        cursor: 'pointer',
-                        '&:hover': { color: 'primary.main' },
-                        transition: 'color 0.2s'
-                      }}
-                    >
-                      {'}'} 
-                    </Box>
-                  </Box>
-                </Typography>
-                <Chip 
-                  label={getSleepQuality().text}
-                  size="small"
-                  sx={{ 
-                    height: 20,
-                    fontSize: '0.7rem',
-                    color: getSleepQuality().color,
-                    bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
-                  }}
-                />
-              </Box>
-              
-              <Stack direction="column" spacing={0.5} alignItems="flex-end">
-                <Button
-                  variant="outlined"
-                  onClick={() => setHistoryOpen(true)}
-                  startIcon={<HistoryIcon />}
-                  size="small"
-                  sx={{ height: 36 }}
-                >
-                  History
-                </Button>
-              </Stack>
-            </Stack>
-          </Grid>
-        </Grid>
+          {/* Add Button */}
+          <Button 
+            variant="contained" 
+            onClick={handleAddSleep}
+            disabled={!startTime || !endTime}
+            size="small"
+            sx={{ 
+              minWidth: 'auto',
+              height: 36,
+              px: 2,
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            {editIndex !== null ? 'Update' : 'Add'}
+          </Button>
+        </Box>
+        
+        {/* Quick Action Links */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'flex-end', 
+          mt: 1.5,
+          mb: 0,
+          fontSize: '0.7rem', 
+          color: 'text.secondary',
+          gap: 2
+        }}>
+          <Box 
+            component="span" 
+            onClick={() => {
+              const now = new Date();
+              const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+              setStartTime(timeString);
+            }}
+            sx={{ 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              '&:hover': { color: 'primary.main' },
+              transition: 'color 0.2s'
+            }}
+          >
+            <Box 
+              component="span" 
+              sx={{ 
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: 'primary.main',
+                display: 'inline-block'
+              }}
+            />
+            Now as start
+          </Box>
+          <Box 
+            component="span" 
+            onClick={() => {
+              const now = new Date();
+              const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+              setEndTime(timeString);
+            }}
+            sx={{ 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              '&:hover': { color: 'primary.main' },
+              transition: 'color 0.2s'
+            }}
+          >
+            <Box 
+              component="span" 
+              sx={{ 
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: 'error.main',
+                display: 'inline-block'
+              }}
+            />
+            Now as end
+          </Box>
+        </Box>
       </Paper>
 
       {/* History Dialog */}

@@ -6,13 +6,14 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import WorkIcon from '@mui/icons-material/Work';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import HomeIcon from '@mui/icons-material/Home';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import Calculator from '../Calculator.tsx'; // Adjust the path to point to the correct location
 
 const BottomNavigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const paths = ['/', '/agenda', '/routine', '/works', '/bucket'];
+  const paths = ['/', '/agenda', '/routine', '/works', '/bucket', '/player'];
   const currentTab = Math.max(paths.indexOf(location.pathname), 0);
 
   return (
@@ -32,11 +33,11 @@ const BottomNavigation: React.FC = () => {
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         boxShadow: 'none',
-        height: 65,
+        height: 50,
         '& .MuiBottomNavigationAction-root': {
           maxWidth: 'none',
           minWidth: 'auto',
-          padding: '8px 0',
+          padding: '4px 0',
           color: 'text.secondary',
           '&.Mui-selected': {
             color: 'primary.main',
@@ -44,11 +45,11 @@ const BottomNavigation: React.FC = () => {
           }
         },
         '& .MuiBottomNavigationAction-label': {
-          fontSize: '0.75rem',
-          marginTop: '2px',
+          fontSize: '0.8rem',
+          marginTop: '1px',
           transition: 'all 0.2s ease',
           '&.Mui-selected': {
-            fontSize: '0.75rem'
+            fontSize: '0.8rem'
           }
         }
       }} 
@@ -91,6 +92,10 @@ const BottomNavigation: React.FC = () => {
         <BottomNavigationAction 
           label="Bucket" 
           icon={<FormatListBulletedIcon />} 
+        />
+        <BottomNavigationAction 
+          label="Player" 
+          icon={<MusicNoteIcon />} 
         />
       </MuiBottomNavigation>
     </Paper>
