@@ -25,57 +25,182 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CountertopsIcon from '@mui/icons-material/Countertops';
 import CounterIcon from '@mui/icons-material/TouchApp';
+import SettingsIcon from '@mui/icons-material/Settings';
+import DragHandleIcon from '@mui/icons-material/DragHandle';
 import { doc, setDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { getFromStorage, saveToStorage, STORAGE_KEYS } from '../utils/localStorage';
+import { useNavigate } from 'react-router-dom';
+
+interface TasbeehWithGoal extends Tasbeeh {
+  goal?: number;
+}
 
 interface TasbeehTrackerProps {
-  initialTasbeehs?: Tasbeeh[];
+  initialTasbeehs?: TasbeehWithGoal[];
 }
 
 const EmptyTasbeehList = ({ onAddClick }: { onAddClick: () => void }) => (
   <Box 
     sx={{ 
       textAlign: 'center', 
-      p: 3, 
+      p: 1.5, 
       borderRadius: 'var(--radius-md)',
       bgcolor: 'background.paper',
       border: '1px dashed',
-      borderColor: 'divider'
+      borderColor: 'divider',
+      height: '100px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center'
     }}
   >
-    <TimelineIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
-    <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-      আপনার তাসবিহ তালিকা খালি
+    <TimelineIcon sx={{ fontSize: 30, color: 'text.secondary', mb: 0.5 }} />
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+      Your tasbeeh list is empty
     </Typography>
     <Button 
       variant="contained" 
       startIcon={<AddCircleIcon />}
       onClick={onAddClick}
+      size="small"
       sx={{ 
         borderRadius: 'var(--radius-pill)',
-        textTransform: 'none'
+        textTransform: 'none',
+        py: 0.5
       }}
     >
-      প্রথম তাসবিহ যোগ করুন
+      Add First Tasbeeh
     </Button>
   </Box>
 );
 
+// Updated TasbeehItem component to be more compact without drag functionality
+const TasbeehItem: React.FC<{ tasbeeh: TasbeehWithGoal; onOpenCounter: (tasbeeh: TasbeehWithGoal) => void }> = ({ 
+  tasbeeh, 
+  onOpenCounter 
+}) => {
+  // Define goal (hardcoded to 33 for now or use tasbeeh.goal if available)
+  const goal = tasbeeh.goal || 33;
+  const progress = Math.min(100, (tasbeeh.count / goal) * 100);
+  
+  // Updated progress color logic to match TasbeehCounter
+  const getProgressColor = () => {
+    if (progress >= 100) return 'info.main'; // Blue at 100%
+    if (progress >= 30) return 'success.main'; // Green from 30% to 99%
+    return 'text.secondary'; // Black/dark until 30%
+  };
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        width: '100%',
+        p: 0.75,
+        mb: 0.75,
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid',
+        borderColor: 'divider',
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        '&:hover': {
+          boxShadow: 'var(--shadow-sm)',
+          transform: 'translateY(-1px)'
+        }
+      }}
+    >
+      {/* Progress bar background */}
+      <Box 
+        sx={{ 
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          height: '100%',
+          width: `${progress}%`,
+          bgcolor: getProgressColor(),
+          opacity: 0.1,
+          transition: 'width 0.3s ease, background-color 0.3s ease'
+        }}
+      />
+      
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'relative'
+      }}>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            fontWeight: 600,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: '70%'
+          }}
+        >
+          {tasbeeh.name}
+        </Typography>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+            {tasbeeh.count}/{goal}
+          </Typography>
+          
+          <IconButton
+            size="small"
+            onClick={() => onOpenCounter(tasbeeh)}
+            sx={{
+              color: 'primary.main',
+              bgcolor: 'rgba(var(--primary-rgb), 0.1)',
+              '&:hover': {
+                bgcolor: 'rgba(var(--primary-rgb), 0.2)'
+              },
+              width: 22,
+              height: 22,
+              p: 0.5
+            }}
+          >
+            <CounterIcon sx={{ fontSize: '0.85rem' }} />
+          </IconButton>
+        </Box>
+      </Box>
+    </Paper>
+  );
+};
+
 const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { tasbeehs, loading: tasbeehsLoading, error: tasbeehsError } = useTasbeehs();
   const [openDialog, setOpenDialog] = useState(false);
   const [newTasbeehName, setNewTasbeehName] = useState('');
+  const [newTasbeehGoal, setNewTasbeehGoal] = useState(33);
   const [isAdding, setIsAdding] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [counterOpen, setCounterOpen] = useState(false);
-  const [selectedTasbeeh, setSelectedTasbeeh] = useState<Tasbeeh | null>(null);
-  const [onlineStatus, setOnlineStatus] = useState<boolean>(navigator.onLine);
-  const [tasbeehItems, setTasbeehItems] = useState<Tasbeeh[]>(initialTasbeehs || []);
+  const [selectedTasbeeh, setSelectedTasbeeh] = useState<TasbeehWithGoal | null>(null);
+  const [onlineStatus, setOnlineStatus] = useState(navigator.onLine);
+  const [tasbeehItems, setTasbeehItems] = useState<TasbeehWithGoal[]>(initialTasbeehs || []);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Define loading and error components first to avoid linter errors
+  const loadingComponent = (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100px">
+      <CircularProgress size={30} thickness={4} />
+    </Box>
+  );
+
+  const errorComponent = (
+    <Box p={1.5}>
+      <Alert severity="error" sx={{ fontSize: '0.85rem' }}>{tasbeehsError}</Alert>
+    </Box>
+  );
 
   // Track online status
   useEffect(() => {
@@ -124,10 +249,11 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
     setError(null);
     
     try {
-      const newTasbeeh: Tasbeeh = {
+      const newTasbeeh: TasbeehWithGoal = {
         id: uuidv4(),
         name: newTasbeehName.trim(),
         count: 0,
+        goal: newTasbeehGoal,
         order: tasbeehItems.length,
         createdAt: new Date().toISOString()
       };
@@ -137,43 +263,53 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
       setTasbeehItems(updatedItems);
       saveToStorage(STORAGE_KEYS.TASBEEHS, updatedItems);
       
-      // If online and user is logged in, add to Firestore
+      // If online and user is logged in, try to add to Firestore but don't block on errors
       if (onlineStatus && user) {
         try {
-          // Add to Firestore
+      // Add to Firestore
           if (tasbeehItems.length === 0) {
-            // Create new document if this is the first tasbeeh
-            await setDoc(doc(db, `users/${user.uid}/tasbeehs/list`), {
-              items: [newTasbeeh]
-            });
-          } else {
-            // Update existing document
-            await updateDoc(doc(db, `users/${user.uid}/tasbeehs/list`), {
-              items: arrayUnion(newTasbeeh)
-            });
+        // Create new document if this is the first tasbeeh
+        await setDoc(doc(db, `users/${user.uid}/tasbeehs/list`), {
+          items: [newTasbeeh]
+        });
+      } else {
+        // Update existing document
+        await updateDoc(doc(db, `users/${user.uid}/tasbeehs/list`), {
+          items: arrayUnion(newTasbeeh)
+        });
           }
         } catch (firebaseError) {
-          console.error('Error adding tasbeeh to Firestore:', firebaseError);
-          setError('ফায়ারবেস ডাটাবেসে সংরক্ষণ করা যায়নি। তবে স্থানীয়ভাবে সংরক্ষিত হয়েছে।');
+          console.warn('Firebase error (continuing with local storage):', firebaseError);
+          // Silently continue with local storage only
         }
       }
       
-      setSuccess('নতুন তাসবিহ সফলভাবে যোগ করা হয়েছে' + (!onlineStatus ? ' (অফলাইন মোডে)' : ''));
+      setSuccess('New tasbeeh added successfully' + (!onlineStatus ? ' (offline mode)' : ''));
       handleCloseDialog();
     } catch (error) {
       console.error('Error adding tasbeeh:', error);
-      setError('তাসবিহ যোগ করতে সমস্যা হয়েছে');
+      setError('Problem adding new tasbeeh');
     } finally {
       setIsAdding(false);
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     }
-  }, [newTasbeehName, tasbeehItems, onlineStatus, user, handleCloseDialog]);
+  }, [newTasbeehName, tasbeehItems, onlineStatus, user, handleCloseDialog, newTasbeehGoal]);
 
-  const handleOpenCounter = useCallback((tasbeeh: Tasbeeh) => {
-    setSelectedTasbeeh(tasbeeh);
-    setCounterOpen(true);
-  }, []);
+  const handleOpenCounter = useCallback((tasbeeh: TasbeehWithGoal) => {
+    // Save the current state to local storage before navigating
+    saveToStorage(STORAGE_KEYS.TASBEEHS, tasbeehItems);
+    
+    // Navigate to the counter route with tasbeeh data
+    navigate(`/tasbeeh-counter/${tasbeeh.id}`, { 
+      state: { 
+        tasbeeh: tasbeeh.name, 
+        goal: tasbeeh.goal || 33,
+        id: tasbeeh.id,
+        currentCount: tasbeeh.count
+      } 
+    });
+  }, [navigate, tasbeehItems]);
 
   const handleCloseCounter = useCallback(async (count: number) => {
     if (!selectedTasbeeh) {
@@ -194,25 +330,25 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
       setTasbeehItems(updatedItems);
       saveToStorage(STORAGE_KEYS.TASBEEHS, updatedItems);
       
-      // If online and user is logged in, update Firestore
+      // If online and user is logged in, try to update Firestore but don't block on errors
       if (onlineStatus && user) {
         try {
           await updateDoc(doc(db, `users/${user.uid}/tasbeehs`, selectedTasbeeh.id), {
             count: increment(count)
           });
         } catch (firebaseError) {
-          console.error('Error updating tasbeeh count in Firestore:', firebaseError);
-          // No need to show error to user if local update worked
+          console.warn('Firebase error (continuing with local storage):', firebaseError);
+          // Silently continue with local storage only
         }
       }
       
       if (count > 0) {
-        setSuccess(`${count} তাসবিহ গণনা করা হয়েছে`);
+        setSuccess(`${count} tasbeeh count updated`);
         setTimeout(() => setSuccess(null), 3000);
       }
     } catch (error) {
       console.error('Error updating tasbeeh count:', error);
-      setError('তাসবিহ গণনা আপডেট করতে সমস্যা হয়েছে');
+      setError('Error updating tasbeeh count');
       setTimeout(() => setError(null), 3000);
     } finally {
       setIsSaving(false);
@@ -221,178 +357,170 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
     }
   }, [selectedTasbeeh, tasbeehItems, onlineStatus, user]);
 
-  // Render a single tasbeeh item
-  const renderTasbeehItem = useCallback((tasbeeh: Tasbeeh, index: number) => (
-    <ListItem 
-      key={tasbeeh.id}
-      sx={{ 
-        p: 0.75,
-        mb: 1,
-        '&:last-child': { mb: 0 }
-      }}
-    >
-      <Paper
-        elevation={0}
-        sx={{
-          width: '100%',
-          p: 2,
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          position: 'relative',
-          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-          '&:hover': {
-            boxShadow: 'var(--shadow-sm)',
-            transform: 'translateY(-2px)'
-          }
-        }}
-      >
-        <ListItemText 
-          primary={
-            <Typography 
-              variant="subtitle1" 
-              sx={{ fontWeight: 600 }}
-            >
-              {tasbeeh.name}
-            </Typography>
-          }
-          secondary={
-            <Typography variant="body2" color="text.secondary">
-              বর্তমান গণনা: {tasbeeh.count}
-            </Typography>
-          }
-        />
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Chip 
-            label={`${tasbeeh.count}`} 
-            color="primary" 
-            size="small"
-            sx={{ 
-              borderRadius: 'var(--radius-pill)',
-              minWidth: 40,
-              fontWeight: 600,
-              px: 1,
-              color: 'white',
-              background: 'linear-gradient(45deg, var(--primary-color) 30%, var(--primary-light) 90%)'
-            }}
-          />
-          
-          <IconButton
-            size="small"
-            onClick={() => handleOpenCounter(tasbeeh)}
-            sx={{
-              color: 'primary.main',
-              bgcolor: 'rgba(var(--primary-rgb), 0.1)',
-              '&:hover': {
-                bgcolor: 'rgba(var(--primary-rgb), 0.2)'
-              },
-              width: 30,
-              height: 30
-            }}
-          >
-            <CounterIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      </Paper>
-    </ListItem>
-  ), [handleOpenCounter]);
-
-  // Simple tasbeeh list
-  const renderTasbeehList = useCallback(() => (
-    <List sx={{ p: 0 }}>
-      {tasbeehItems.map((tasbeeh, index) => renderTasbeehItem(tasbeeh, index))}
-    </List>
-  ), [tasbeehItems, renderTasbeehItem]);
+  // Navigate to settings
+  const goToSettings = useCallback(() => {
+    navigate('/settings', { state: { defaultTab: 0 } });
+  }, [navigate]);
 
   // Generate content based on tasbeeh items
-  const tasbeehContent = useMemo(() => {
+  const TasbeehTrackerContent = useMemo(() => {
     if (tasbeehItems.length === 0) {
       return <EmptyTasbeehList onAddClick={handleOpenDialog} />;
     }
-    
-    return renderTasbeehList();
-  }, [tasbeehItems, handleOpenDialog, renderTasbeehList]);
 
-  // Loading and error handling components
-  const loadingComponent = (
-    <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-      <CircularProgress />
-    </Box>
-  );
+    // Only show the first 3 tasbeehs
+    const displayedTasbeehs = tasbeehItems.slice(0, 3);
+    const remainingCount = tasbeehItems.length - 3;
 
-  const errorComponent = (
-    <Box p={3}>
-      <Alert severity="error">{tasbeehsError}</Alert>
-    </Box>
-  );
+    return (
+      <Box sx={{ 
+        width: '100%', 
+        height: '100px',
+        overflow: 'auto',
+        scrollbarWidth: 'thin',
+        '&::-webkit-scrollbar': {
+          width: '4px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          backgroundColor: 'rgba(0,0,0,0.2)',
+          borderRadius: '4px',
+        }
+      }}>
+        <Box>
+          {displayedTasbeehs.map((tasbeeh) => (
+            <TasbeehItem
+              key={tasbeeh.id}
+              tasbeeh={tasbeeh}
+              onOpenCounter={handleOpenCounter}
+            />
+          ))}
+          
+          {remainingCount > 0 && (
+            <Box 
+              sx={{ 
+                width: '100%', 
+                p: 0.75, 
+                textAlign: 'center',
+                color: 'primary.main',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                borderRadius: 'var(--radius-md)',
+                border: '1px dashed',
+                borderColor: 'divider',
+                '&:hover': {
+                  bgcolor: 'rgba(var(--primary-rgb), 0.05)'
+                }
+              }}
+              onClick={goToSettings}
+            >
+              +{remainingCount} more
+            </Box>
+          )}
+        </Box>
+      </Box>
+    );
+  }, [tasbeehItems, handleOpenDialog, handleOpenCounter, goToSettings]);
 
   // Main render
   return (
-    <Box>
+    <Box sx={{ px: 0.5, height: '100%' }}>
       <Stack 
         direction="row" 
         justifyContent="space-between" 
         alignItems="center" 
-        sx={{ mb: 2 }}
+        sx={{ mb: 0.5 }}
       >
         <Stack direction="row" spacing={1} alignItems="center">
-          <CountertopsIcon color="primary" />
           <Typography 
-            variant="h6" 
+            variant="subtitle2" 
             component="h2"
             sx={{ 
-              fontWeight: 600,
-              letterSpacing: '-0.5px'
+              fontWeight: 600
             }}
           >
-            তাসবিহ ট্র্যাকার
+            Tasbeeh
           </Typography>
         </Stack>
         
-        <Button
-          variant="outlined"
-          startIcon={<AddCircleIcon />}
-          onClick={handleOpenDialog}
+        <IconButton
+          color="primary"
+          onClick={goToSettings}
           size="small"
           sx={{ 
-            borderRadius: 'var(--radius-pill)',
-            textTransform: 'none',
-            px: 2
+            color: 'primary.main',
+            bgcolor: 'rgba(var(--primary-rgb), 0.05)',
+            '&:hover': {
+              bgcolor: 'rgba(var(--primary-rgb), 0.1)'
+            },
+            width: 24,
+            height: 24
           }}
         >
-          নতুন তাসবিহ
-        </Button>
+          <SettingsIcon sx={{ fontSize: '0.9rem' }} />
+        </IconButton>
       </Stack>
-
-      {/* Offline indicator */}
-      {!onlineStatus && (
-        <Alert severity="warning" sx={{ mb: 2, fontSize: '0.85rem' }}>
-          আপনি বর্তমানে অফলাইনে আছেন। পরিবর্তনগুলি স্থানীয়ভাবে সংরক্ষণ করা হবে এবং আপনি অনলাইনে ফিরে আসলে সিঙ্ক হবে।
-        </Alert>
-      )}
 
       {/* Success and Error messages */}
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
+        <Alert 
+          severity="success" 
+          sx={{ 
+            mb: 0.5, 
+            py: 0, 
+            px: 1,
+            fontSize: '0.7rem', 
+            '& .MuiAlert-icon': {
+              fontSize: '1rem',
+              py: 0.5
+            }
+          }}
+        >
           {success}
         </Alert>
       )}
       
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert 
+          severity="error" 
+          sx={{ 
+            mb: 0.5, 
+            py: 0, 
+            px: 1,
+            fontSize: '0.7rem',
+            '& .MuiAlert-icon': {
+              fontSize: '1rem',
+              py: 0.5
+            }
+          }}
+        >
           {error}
+        </Alert>
+      )}
+
+      {/* Offline indicator - compact version */}
+      {!onlineStatus && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 0.5, 
+            py: 0, 
+            px: 1,
+            fontSize: '0.7rem', 
+            borderRadius: 'var(--radius-md)',
+            '& .MuiAlert-icon': {
+              fontSize: '1rem',
+              py: 0.5
+            }
+          }}
+        >
+          Offline mode. Changes saved locally.
         </Alert>
       )}
 
       {/* Conditional content rendering */}
       {tasbeehsLoading && !tasbeehItems.length ? loadingComponent :
        tasbeehsError && !tasbeehItems.length ? errorComponent :
-       tasbeehContent}
+       TasbeehTrackerContent}
 
       {/* Add Tasbeeh Dialog */}
       <Dialog 
@@ -407,29 +535,29 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
         }}
       >
         <DialogTitle>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            নতুন তাসবিহ যোগ করুন
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Add New Tasbeeh
           </Typography>
         </DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
-            label="তাসবিহের নাম"
+            label="Tasbeeh Name"
             type="text"
             fullWidth
             variant="outlined"
             value={newTasbeehName}
             onChange={(e) => setNewTasbeehName(e.target.value)}
             sx={{ 
-              mt: 1,
+              mt: 0.5,
               '& .MuiOutlinedInput-root': {
                 borderRadius: 'var(--radius-md)'
               }
             }}
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button 
             onClick={handleCloseDialog}
             sx={{ 
@@ -437,7 +565,7 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
               textTransform: 'none'
             }}
           >
-            বাতিল
+            Cancel
           </Button>
           <Button 
             onClick={handleAddTasbeeh} 
@@ -449,7 +577,7 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
               textTransform: 'none'
             }}
           >
-            {isAdding ? 'যোগ করা হচ্ছে...' : 'যোগ করুন'}
+            {isAdding ? 'Adding...' : 'Add'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -458,7 +586,7 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
       {selectedTasbeeh && counterOpen && (
         <TasbeehCounter
           tasbeeh={selectedTasbeeh.name}
-          goal={33} // Default goal
+          goal={selectedTasbeeh.goal || 33}
           onClose={handleCloseCounter}
         />
       )}

@@ -7,6 +7,7 @@ export interface Tasbeeh {
   id: string;
   name: string;
   count: number;
+  goal?: number;
   order: number;
   createdAt?: string;
 }
@@ -22,9 +23,9 @@ export const useTasbeehs = () => {
 
     try {
       const defaults = [
-        { id: '1', name: 'Subhanallah', count: 33, order: 0 },
-        { id: '2', name: 'Alhamdulillah', count: 33, order: 1 },
-        { id: '3', name: 'Allahu Akbar', count: 34, order: 2 }
+        { id: '1', name: 'Subhanallah', count: 0, goal: 33, order: 0 },
+        { id: '2', name: 'Alhamdulillah', count: 0, goal: 33, order: 1 },
+        { id: '3', name: 'Allahu Akbar', count: 0, goal: 34, order: 2 }
       ];
 
       await Promise.all(

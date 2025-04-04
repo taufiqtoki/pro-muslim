@@ -123,7 +123,7 @@ const HomeTab: React.FC = () => {
       </Grid>
       
       <Grid item xs={12}>
-        <SimpleCard height="200px">
+        <SimpleCard height="150px">
           <TasbeehTracker initialTasbeehs={initialTasbeehs} />
         </SimpleCard>
       </Grid>
@@ -171,7 +171,7 @@ const HomeTab: React.FC = () => {
             </SimpleCard>
           </Grid>
           
-          <Grid item md={12} sx={{ height: '40%' }}>
+          <Grid item md={12} sx={{ height: '40%', minHeight: '150px' }}>
             <SimpleCard height="100%">
               <TasbeehTracker initialTasbeehs={initialTasbeehs} />
             </SimpleCard>

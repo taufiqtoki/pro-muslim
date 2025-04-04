@@ -53,12 +53,24 @@ const Stopwatch: React.FC = () => {
   };
 
   const handleKeyPress = (event: KeyboardEvent) => {
+    // Only handle key events when the stopwatch component is focused/visible
+    // Check if we're in a dialog or if the event happened elsewhere
+    if (isCalculatorOpen || isTimerOpen) {
+      return;
+    }
+    
     const { key } = event;
     if (key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
       handlePlayPause();
     } else if (key === 's') {
+      event.preventDefault();
+      event.stopPropagation();
       handleStop();
     } else if (key === 'r') {
+      event.preventDefault();
+      event.stopPropagation();
       handleReset();
     }
   };
@@ -68,7 +80,7 @@ const Stopwatch: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, []);
+  }, [isCalculatorOpen, isTimerOpen]); // Add dependencies to ensure we re-evaluate when modals open/close
 
   const handleInfoClick = (event: React.MouseEvent<HTMLElement>) => {
     setInfoAnchorEl(event.currentTarget);
