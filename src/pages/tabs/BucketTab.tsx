@@ -4,15 +4,12 @@ import {
   TableRow, IconButton, Checkbox, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Button, Typography, List, ListItem
 } from '@mui/material';
-import DragHandleIcon from '@mui/icons-material/DragHandle';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase.ts';
 import { useAuth } from '../../hooks/useAuth.ts';
 import { AutosuggestInput } from '../../components/AutosuggestInput.tsx';
-import ReusableTable from '../../components/ReusableTable.tsx';
 import { useDragDrop } from '../../hooks/useDragDrop.ts';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';

@@ -7,6 +7,7 @@ import HomeTab from "./pages/tabs/HomeTab";
 import WorksTab from "./pages/tabs/WorksTab";
 import AgendaTab from "./pages/tabs/AgendaTab";
 import RoutineTab from "./pages/tabs/RoutineTab";
+import RoutineSettings from "./pages/tabs/RoutineSettings";
 import BucketTab from "./pages/tabs/BucketTab";
 import Profile from "./pages/Profile";
 import Report from "./pages/Report";
@@ -38,6 +39,7 @@ export const App: React.FC = () => {
                           <Route path="works" element={<WorksTab />} />
                           <Route path="agenda" element={<AgendaTab />} />
                           <Route path="routine" element={<RoutineTab />} />
+                          <Route path="routine/settings" element={<RoutineSettings />} />
                           <Route path="bucket" element={<BucketTab />} />
                           <Route path="profile" element={<Profile />} />
                           <Route path="report" element={<Report />} />

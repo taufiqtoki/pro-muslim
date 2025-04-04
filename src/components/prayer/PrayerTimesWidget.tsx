@@ -295,7 +295,7 @@ const PrayerTimesWidget: React.FC = () => {
         </Typography>
         
         <IconButton
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/settings', { state: { defaultTab: 1 } })}
           size="small"
           sx={{ 
             color: 'primary.main',
@@ -352,7 +352,7 @@ const PrayerTimesWidget: React.FC = () => {
                 fontSize: { xs: '0.9rem', sm: '1rem' } 
               }}
             >
-              Be Ready for <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{currentOrNext.name}</Box> in <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{remainingTime.hours.toString().padStart(2, '0')}:{remainingTime.minutes.toString().padStart(2, '0')}</Box>
+              Be Ready for <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{currentOrNext.name}</Box> in <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{remainingTime.hours}h {remainingTime.minutes}m</Box>
             </Typography>
           </Box>
         </Box>

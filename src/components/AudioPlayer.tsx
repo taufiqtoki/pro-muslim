@@ -206,7 +206,7 @@ const AudioPlayer: React.FC = () => {
 
   if (hasError) {
     return (
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 1 }}>
         <Typography color="error">
           Something went wrong with the audio player. Please refresh the page.
         </Typography>
@@ -381,7 +381,7 @@ const AudioPlayer: React.FC = () => {
         // No need to manually modify favorites playlist - it will be updated through usePlaylist hook
         if (currentPlaylistId === 'favorites') {
           await refreshPlaylist();
-        }
+      }
       }
 
       showToast(isFavorite ? 'Removed from favorites' : 'Added to favorites', 'success');
@@ -579,34 +579,34 @@ const AudioPlayer: React.FC = () => {
   const addLocalTrackToPlaylist = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
-    
-    for (const file of files) {
-      try {
-        const metadata = await getAudioMetadata(file);
+
+      for (const file of files) {
+        try {
+          const metadata = await getAudioMetadata(file);
         const fileId = await localFileService.saveFile(file);
-        
-        const newTrack: Track = {
+
+          const newTrack: Track = {
           id: fileId,
           url: fileId, // Store ID instead of blob URL
-          name: metadata.name || file.name,
-          duration: metadata.duration,
-          thumbnail: '',
-          addedAt: Date.now(),
+            name: metadata.name || file.name,
+            duration: metadata.duration,
+            thumbnail: '',
+            addedAt: Date.now(),
           type: 'local',
-          metadata: {
+            metadata: {
             lastModified: file.lastModified,
             size: file.size,
-            mimeType: file.type
-          }
-        };
+              mimeType: file.type
+            }
+          };
 
         const isQueue = event.target.dataset.target === 'queue';
         if (isQueue) {
           await addToQueue(newTrack);
         } else {
           await addTrack(newTrack);
-        }
-      } catch (error) {
+          }
+        } catch (error) {
         logger.error('Error adding track:', error);
         showToast('Error adding track', 'error');
       }
@@ -629,10 +629,10 @@ const AudioPlayer: React.FC = () => {
         const videoId = validateYouTubeUrl(track.url);
         if (!videoId) throw new Error('Invalid YouTube URL');
         
-        setYoutubeVideoId(videoId);
-        if (youtubeRef.current?.internalPlayer) {
+          setYoutubeVideoId(videoId);
+          if (youtubeRef.current?.internalPlayer) {
           await youtubeRef.current.internalPlayer.loadVideoById(videoId);
-          setIsPlaying(true);
+            setIsPlaying(true);
         }
       } else if (track.type === 'local') {
         const file = await localFileService.getFile(track.id);
@@ -781,8 +781,8 @@ const AudioPlayer: React.FC = () => {
         return;
       }
 
-      const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
-      setImportProgress({ current: 0, total: details.itemCount });
+        const details = await playlistService.fetchYouTubePlaylistDetails(playlistId);
+        setImportProgress({ current: 0, total: details.itemCount });
       const tracks = await playlistService.fetchYouTubePlaylistTracks(playlistId);
 
       // Fix: Ensure tracks are added to queue when initiated from queue panel
@@ -796,14 +796,14 @@ const AudioPlayer: React.FC = () => {
       } else {
         // Import as new playlist only if not from queue
         if (user) {
-          const newPlaylistId = await playlistService.importYouTubePlaylist(
+        const newPlaylistId = await playlistService.importYouTubePlaylist(
             user.uid,
             playlistId,
             undefined,
             (current) => setImportProgress(prev => ({ ...prev, current }))
-          );
-          await loadPlaylists();
-          setCurrentPlaylistId(newPlaylistId);
+        );
+        await loadPlaylists();
+        setCurrentPlaylistId(newPlaylistId);
           setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' })); // Clear playlist URL
           showToast(`Playlist "${details.title}" imported successfully`, 'success');
         }
@@ -837,7 +837,7 @@ const AudioPlayer: React.FC = () => {
       <TableRow 
         // Change key to include a unique prefix and parent list identifier
         key={`empty-${currentPlaylistId}-${index}`}
-        sx={{ 
+        sx={{
           height: '36px',
           minHeight: '36px',
           maxHeight: '36px',
@@ -876,7 +876,7 @@ const AudioPlayer: React.FC = () => {
       backgroundColor: 'background.paper',
     },
     '& .MuiTableBody-root': {
-      '& .MuiTableRow-root': {
+    '& .MuiTableRow-root': {
         height: '40px !important', // Force consistent height
       }
     },
@@ -953,23 +953,23 @@ const AudioPlayer: React.FC = () => {
   const renderMainContent = () => {
     const currentTrack = getCurrentTrack();
     return (
-      <Paper elevation={3} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+      <Paper elevation={3} sx={{ p: 1, mb: 2, bgcolor: 'background.paper' }}>
         {currentTrack?.thumbnail && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-            <img
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <img
               src={currentTrack.thumbnail}
-              alt="Track Thumbnail"
-              style={{
+            alt="Track Thumbnail"
+            style={{
                 width: '150px', 
                 height: '150px',
                 borderRadius: '12px', 
                 boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', 
                 objectFit: 'cover',
-              }}
-            />
-          </Box>
-        )}
-        {renderMainTitle()}
+            }}
+          />
+        </Box>
+      )}
+      {renderMainTitle()}
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center',
@@ -988,19 +988,19 @@ const AudioPlayer: React.FC = () => {
           </Typography>
 
           <Box sx={{ flex: 1 }}>
-            <Slider
-              value={sliderValue}
-              max={duration || 100}
-              onChange={handleSliderChange}
-              onChangeCommitted={handleSliderChangeCommitted}
-              sx={{ 
+        <Slider
+          value={sliderValue}
+          max={duration || 100}
+          onChange={handleSliderChange}
+          onChangeCommitted={handleSliderChangeCommitted}
+          sx={{
                 '& .MuiSlider-thumb': {
                   width: 12,
                   height: 12
                 }
               }}
             />
-          </Box>
+      </Box>
 
           <Typography sx={{ 
             color: 'text.secondary',
@@ -1065,24 +1065,24 @@ const AudioPlayer: React.FC = () => {
           </Box>
         </Box>
         <Box sx={{ width: '100%', mb: 1, overflow: 'auto' }}>
-          <PlaybackControls
-            isPlaying={isPlaying}
-            onPlayPause={handlePlayPause}
-            onNext={handleNextTrack}
-            onPrevious={handlePreviousTrack}
-            onSeek={seek}
+      <PlaybackControls
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+        onNext={handleNextTrack}
+        onPrevious={handlePreviousTrack}
+        onSeek={seek}
             repeatMode={repeatMode}
             onRepeatModeChange={setRepeatMode}
             isShuffled={isShuffled}
             onShuffleToggle={handleShuffleToggle}
-          />
+      />
         </Box>
 
         <Box sx={{ width: '100%', overflow: 'auto' }}>
-          <SpeedControls onSpeedChange={changePlaybackRate} />
+      <SpeedControls onSpeedChange={changePlaybackRate} />
         </Box>
-      </Paper>
-    );
+    </Paper>
+  );
   };
 
   const renderMainTitle = () => (
@@ -1110,7 +1110,7 @@ const AudioPlayer: React.FC = () => {
       <Typography variant="h6">Queue</Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Tooltip title={`Shuffle: ${isShuffled ? 'On' : 'Off'}`}>
-          <IconButton 
+        <IconButton 
             onClick={handleShuffleToggle}
             color={isShuffled ? 'primary' : 'default'}
             size="small"
@@ -1167,15 +1167,15 @@ const AudioPlayer: React.FC = () => {
   };
 
   const renderTableHeader = (isQueue: boolean) => (
-    <TableHead>
-      <TableRow>
+                  <TableHead>
+                    <TableRow>
         <TableCell padding="none" align="center"></TableCell>
         <TableCell padding="none" align="center">#</TableCell>
         <TableCell padding="none" align="left">Name</TableCell>
         <TableCell padding="none" align="center">Length</TableCell>
         <TableCell padding="none" align="center">Actions</TableCell>
-      </TableRow>
-    </TableHead>
+                    </TableRow>
+                  </TableHead>
   );
 
   const commonTableSx = {
@@ -1361,9 +1361,9 @@ const AudioPlayer: React.FC = () => {
                   onRemoveFromQueue={removeFromQueue}
                 />
               ))}
-              {queueTracks.length < 5 && renderEmptyRows(5 - queueTracks.length)}
-            </TableBody>
-          </Table>
+                    {queueTracks.length < 5 && renderEmptyRows(5 - queueTracks.length)}
+                  </TableBody>
+                </Table>
         </TableContainer>
         <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
@@ -1410,70 +1410,72 @@ const AudioPlayer: React.FC = () => {
               fullWidth
               startIcon={<YouTubeIcon />}
               onClick={() => setYoutubePlaylistDialog(true)}
+              sx={{ px: 0.5, py: 0.5, fontSize: '0.8rem' }}
             >
-              Import YT List to Queue
+              List to Queue
             </Button>
             <Button
               variant="outlined"
               fullWidth
               onClick={() => setNewPlaylistDialog(true)}
               startIcon={<SaveIcon />}
+              sx={{ px: 0.5, py: 0.5, fontSize: '0.8rem' }}
             >
               Queue
             </Button>
-          </Box>
         </Box>
-      </Paper>
+      </Box>
+    </Paper>
     </DndProvider>
   );
 
   const renderPlaylistTrackRow = (track: Track, index: number) => {
     if (!track) return null;
     return (
-      <TableRow
+    <TableRow
         // Add playlist ID to make key unique
         key={`playlist-${currentPlaylistId}-${track.id}-${index}`}
-        sx={{ 
+      sx={{
           backgroundColor: index % 2 === 0 ? 'grey.50' : 'inherit',
           '&:hover': { backgroundColor: 'action.hover' },
-          ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
-        }}
-      >
-        <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
+        ...(index === currentTrackIndex && { backgroundColor: 'action.selected' }),
+      }}
+    >
+      <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
             height: '100%'
           }}>
-            {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
+        {track.type === 'youtube' ? <LanguageIcon /> : <InsertDriveFileIcon />}
           </Box>
-        </TableCell>
+      </TableCell>
         <TableCell sx={{ textAlign: 'center' }}>{index + 1}</TableCell>
         <TableCell sx={{ ...cellStyles, py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>
           <span>{track.name}</span>
         </TableCell>
-        <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
+      <TableCell sx={{ py: 1, px: { xs: 0.5, sm: 1 }, typography: 'body2' }}>{formatDuration(track.duration)}</TableCell>
         <TableCell sx={{ p: 0 }}> {/* Removed cell padding */}
           <Box sx={actionButtonsSx}>
             <IconButton size="small" onClick={() => addToQueue(track)}>
-              <QueueMusicIcon />
-            </IconButton>
+            <QueueMusicIcon />
+          </IconButton>
             <IconButton size="small" onClick={() => {
-                const newName = prompt('Edit track name:', track.name);
-                if (newName && newName !== track.name) updateTrack(track.id, { name: newName });
-              }}
-              title="Edit name"
-            >
-              <EditIcon />
-            </IconButton>
+              const newName = prompt('Edit track name:', track.name);
+              if (newName && newName !== track.name) updateTrack(track.id, { name: newName });
+            }}
+            title="Edit name"
+          >
+            <EditIcon />
+          </IconButton>
             <IconButton size="small" onClick={() => handleRemoveTrack(track.id)}>
-              <DeleteIcon />
-            </IconButton>
-          </Box>
-        </TableCell>
-      </TableRow>
-    );
+            <DeleteIcon />
+          </IconButton>
+        </Box>
+      </TableCell>
+    </TableRow>
+  );
   };
 
   const getFavoritesPlaylist = async (): Promise<Playlist> => {
@@ -1672,9 +1674,9 @@ const AudioPlayer: React.FC = () => {
   const renderPlaylistPanel = () => (
     <Paper 
       elevation={3} 
-      sx={{ 
+              sx={{
         p: 2, 
-        display: 'flex', 
+                display: 'flex',
         flexDirection: 'column', 
         height: '405px',
         position: 'relative',
@@ -1710,63 +1712,63 @@ const AudioPlayer: React.FC = () => {
       <TableContainer sx={tableContainerSx}>
         <Table size="small" stickyHeader sx={commonTableSx}>
           {renderTableHeader(false)}
-          <TableBody>
+            <TableBody>
             {playlist?.tracks?.map((track, index) => renderPlaylistTrackRow(track, index))}
             {(playlist?.tracks?.length || 0) < 5 && renderEmptyRows(5 - (playlist?.tracks?.length || 0))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableBody>
+          </Table>
+        </TableContainer>
       <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-          <TextField
-            label="YouTube URL"
-            size="small"
-            value={playlistUrl}
-            onChange={(e) => setPlaylistUrl(e.target.value)}
-            sx={{ flex: 1, ...textFieldStyles }}
-            InputProps={{
-              endAdornment: (
-                <Button
-                  variant="contained"
+          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <TextField
+              label="YouTube URL"
+              size="small"
+              value={playlistUrl}
+              onChange={(e) => setPlaylistUrl(e.target.value)}
+              sx={{ flex: 1, ...textFieldStyles }}
+              InputProps={{
+                endAdornment: (
+                  <Button
+                    variant="contained"
                   onClick={handlePlaylistUrlSubmit}
                   size="small"
-                  sx={addButtonStyles}
-                >
+                    sx={addButtonStyles}
+                  >
                   <AddIcon sx={{ fontSize: '20px' }} />
-                </Button>
-              ),
-            }}
-          />
-          <Button
-            variant="contained"
-            size="small"
-            component="label"
-            startIcon={<InsertDriveFileIcon />}
-            color="secondary"
-          >
-            Add File
-            <input
-              type="file"
-              accept={SUPPORTED_FORMATS.join(',')}
-              onChange={addLocalTrackToPlaylist}
-              multiple
-              hidden
+                  </Button>
+                ),
+              }}
             />
-          </Button>
-        </Box>
-        
+            <Button
+              variant="contained"
+            size="small"
+              component="label"
+              startIcon={<InsertDriveFileIcon />}
+              color="secondary"
+            >
+              Add File
+              <input
+                type="file"
+                accept={SUPPORTED_FORMATS.join(',')}
+                onChange={addLocalTrackToPlaylist}
+                multiple
+                hidden
+              />
+            </Button>
+          </Box>
+          
         {renderPlaylistButtons()}
       </Box>
     </Paper>
   );
 
   const renderQueueButtons = () => (
-    <Box sx={{ display: 'flex', gap: 1 }}>
-      <Button
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
         id="queue-yt-playlist-btn"
-        variant="outlined"
-        fullWidth
-        startIcon={<YouTubeIcon />}
+              variant="outlined"
+              fullWidth
+              startIcon={<YouTubeIcon />}
         onClick={() => {
           setQueuePlaylistUrl(''); // Clear first
           setNewPlaylistData(prev => ({ ...prev, youtubeUrl: '' }));
@@ -1774,17 +1776,17 @@ const AudioPlayer: React.FC = () => {
         }}
       >
         Import YT List to Queue
-      </Button>
-      <Button
+            </Button>
+            <Button
         id="queue-save-btn"
-        variant="outlined"
-        fullWidth
-        onClick={() => setNewPlaylistDialog(true)}
+              variant="outlined"
+              fullWidth
+              onClick={() => setNewPlaylistDialog(true)}
         startIcon={<SaveIcon />}
-      >
+            >
         Save Queue
-      </Button>
-    </Box>
+            </Button>
+          </Box>
   );
 
   const renderPlaylistButtons = () => (
@@ -1798,19 +1800,21 @@ const AudioPlayer: React.FC = () => {
           setYoutubePlaylistDialog(true);
           setQueuePlaylistUrl(''); // Clear queue URL
         }}
+        sx={{ px: 0.5, py: 0.5, fontSize: '0.8rem' }}
       >
-        Import to Playlist
+        to Playlist
       </Button>
       <Button
         id="playlist-create-btn"
         variant="outlined"
         fullWidth
         onClick={() => setNewPlaylistDialog(true)}
-        startIcon={<SaveIcon />}
+      
+        sx={{ px: 0.5, py: 0.5, fontSize: '0.8rem' }}
       >
         Create Playlist
       </Button>
-    </Box>
+        </Box>
   );
 
   const renderPlaylistDropdown = () => (
@@ -2182,5 +2186,5 @@ const AudioPlayer: React.FC = () => {
     </Box>
   );
 };
-
+  
 export default AudioPlayer;

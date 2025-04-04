@@ -87,14 +87,14 @@ const Stopwatch: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        p: 0,
+        p: { xs: 0, sm: 0 },
         m: 0
       }}>
         {/* Main Content with Divider */}
         <Stack 
-          direction={{ xs: 'column', sm: 'row' }} 
-          spacing={2} 
-          divider={<Divider orientation={isMobile ? "horizontal" : "vertical"} flexItem />}
+          direction="row" 
+          spacing={ { xs: 0.5, sm: 1 } }
+          divider={<Divider orientation="vertical" flexItem />}
           alignItems="center"
           justifyContent="space-between"
           sx={{ flexGrow: 1, m: 0, p: 0 }}
@@ -102,16 +102,16 @@ const Stopwatch: React.FC = () => {
           {/* Main time display */}
           <Box sx={{ 
             textAlign: 'center', 
-            width: { xs: '100%', sm: '75%' },
+            width: { xs: '80%', sm: '75%' },
             flexShrink: 1,
             p: 0,
             m: 0
           }}>
-            <Typography 
+        <Typography 
               variant="h1" 
-              sx={{ 
-                fontWeight: 700,
-                fontSize: { xs: '2.2rem', sm: '2.8rem', md: '3.2rem' },
+          sx={{ 
+            fontWeight: 700,
+                fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
                 fontFamily: 'var(--font-display)',
                 letterSpacing: '-1px',
                 color: isRunning 
@@ -124,40 +124,48 @@ const Stopwatch: React.FC = () => {
                   : 'none',
                 m: 0,
                 p: 0
-              }}
-            >
-              {formatTime(time)}
-            </Typography>
+          }}
+        >
+          {formatTime(time)}
+        </Typography>
             
             {/* Controls */}
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'center', 
-              gap: 2,
-              mt: 1
+              gap: 1,
+              mt: 0.5
             }}>
-              {!isStopped && (
+          {!isStopped && (
                 <Fab 
                   onClick={handlePlayPause} 
                   color={isRunning ? "default" : "primary"}
                   size="small"
                   sx={{ 
                     boxShadow: isRunning ? 'none' : 'var(--shadow-md)',
-                    bgcolor: isRunning ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') : undefined
+                    bgcolor: isRunning ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') : undefined,
+                    width: 32,
+                    height: 32,
+                    minHeight: 'auto'
                   }}
                 >
-                  {isRunning ? <PauseIcon /> : <PlayArrowIcon />}
+              {isRunning ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
                 </Fab>
-              )}
+          )}
               
-              {(isRunning || (!isRunning && !isStopped)) && (
+          {(isRunning || (!isRunning && !isStopped)) && (
                 <Fab 
                   onClick={handleStop} 
                   color="error"
                   size="small"
-                  sx={{ boxShadow: 'var(--shadow-md)' }}
+                  sx={{ 
+                    boxShadow: 'var(--shadow-md)',
+                    width: 32,
+                    height: 32,
+                    minHeight: 'auto'
+                  }}
                 >
-                  <StopIcon />
+              <StopIcon fontSize="small" />
                 </Fab>
               )}
               
@@ -167,10 +175,13 @@ const Stopwatch: React.FC = () => {
                 size="small"
                 sx={{ 
                   boxShadow: 'var(--shadow-md)',
-                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  width: 32,
+                  height: 32,
+                  minHeight: 'auto'
                 }}
               >
-                <RestartAltIcon />
+            <RestartAltIcon fontSize="small" />
               </Fab>
             </Box>
           </Box>
@@ -180,50 +191,31 @@ const Stopwatch: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1,
-            p: 1,
+            justifyContent: 'center',
+            gap: 0.5,
+            p: { xs: 0.25, sm: 0.5 },
             borderRadius: 'var(--radius-md)',
-            width: { xs: '100%', sm: 'auto' },
+            width: { xs: 'auto', sm: 'auto' },
             flexShrink: 0
           }}>
-            <Box
-              sx={{
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center'
-              }}
-            >
-              <Typography 
-                variant="caption" 
-                color="text.secondary"
-                sx={{ 
-                  fontWeight: 500,
-                  mb: 0.5,
-                  textAlign: 'center'
-                }}
-              >
-                Tools
-              </Typography>
-              
-              <Divider sx={{ width: '60%', mb: 1 }} />
-            </Box>
-            
             <Tooltip title="Calculator">
               <IconButton
                 onClick={() => setIsCalculatorOpen(true)}
                 size="small"
                 sx={{ 
-                  p: 1,
+                  p: { xs: 0.25, sm: 0.5 },
                   bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
                   color: 'text.secondary',
                   '&:hover': {
                     bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
                     color: 'primary.main'
-                  }
+                  },
+                  width: 34,
+                  height: 34,
+                  minWidth: 'auto'
                 }}
               >
-                <CalculateIcon fontSize="small" />
+                <CalculateIcon sx={{ fontSize: '1.5rem' }} />
               </IconButton>
             </Tooltip>
             
@@ -232,16 +224,19 @@ const Stopwatch: React.FC = () => {
                 onClick={() => setIsTimerOpen(true)}
                 size="small"
                 sx={{ 
-                  p: 1,
+                  p: { xs: 0.25, sm: 0.5 },
                   bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
                   color: 'text.secondary',
                   '&:hover': {
                     bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
                     color: 'primary.main'
-                  }
+                  },
+                  width: 34,
+                  height: 34,
+                  minWidth: 'auto'
                 }}
               >
-                <TimerIcon fontSize="small" />
+                <TimerIcon sx={{ fontSize: '1.5rem' }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -300,11 +295,11 @@ const Stopwatch: React.FC = () => {
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Calculator
+          Calculator
             </Typography>
-            <IconButton
-              aria-label="close"
-              onClick={() => setIsCalculatorOpen(false)}
+          <IconButton
+            aria-label="close"
+            onClick={() => setIsCalculatorOpen(false)}
               sx={{ 
                 color: 'text.secondary',
                 '&:hover': {
@@ -312,9 +307,9 @@ const Stopwatch: React.FC = () => {
                   color: 'error.main'
                 }
               }}
-            >
-              <CloseIcon />
-            </IconButton>
+          >
+            <CloseIcon />
+          </IconButton>
           </Stack>
         </DialogTitle>
         <DialogContent>
@@ -337,11 +332,11 @@ const Stopwatch: React.FC = () => {
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Timer
+          Timer
             </Typography>
-            <IconButton
-              aria-label="close"
-              onClick={() => setIsTimerOpen(false)}
+          <IconButton
+            aria-label="close"
+            onClick={() => setIsTimerOpen(false)}
               sx={{ 
                 color: 'text.secondary',
                 '&:hover': {
@@ -349,9 +344,9 @@ const Stopwatch: React.FC = () => {
                   color: 'error.main'
                 }
               }}
-            >
-              <CloseIcon />
-            </IconButton>
+          >
+            <CloseIcon />
+          </IconButton>
           </Stack>
         </DialogTitle>
         <DialogContent>

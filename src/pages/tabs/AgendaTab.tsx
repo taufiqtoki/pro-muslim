@@ -373,7 +373,7 @@ const AgendaTab: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
+    </Box>
     </LocalizationProvider>
   );
 };

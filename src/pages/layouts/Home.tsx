@@ -69,13 +69,14 @@ export const Home: React.FC = () => {
 
       <AppBar 
         position="sticky" 
-        elevation={0}
-        className="glass-effect"
+        elevation={1}
         sx={{ 
-          bgcolor: 'background.paper',
+          bgcolor: theme.palette.background.paper,
           height: '50px',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+          borderBottom: 'none',
+          borderColor: 'divider'
         }}
       >
         <Container maxWidth="lg">

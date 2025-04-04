@@ -1,7 +1,7 @@
 import React, { useState, useEffect, ReactNode } from 'react';
 import { Container, Typography, IconButton, Tabs, Tab, Box, Divider, Button, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import TasbeehSettings from '../components/settings/TasbeehSettings.tsx';
 import { PrayerSettings } from './settings/PrayerSettings.tsx';
 import { db } from '../firebase.ts';
@@ -29,8 +29,14 @@ function TabPanel(props: TabPanelProps) {
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
-  const [value, setValue] = useState(0);
+  const [value, setValue] = useState(() => {
+    // Check if there's a defaultTab in location state and use it, otherwise default to 0
+    return location.state && typeof location.state.defaultTab === 'number' 
+      ? location.state.defaultTab 
+      : 0;
+  });
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

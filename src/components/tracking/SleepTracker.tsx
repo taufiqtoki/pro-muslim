@@ -180,7 +180,7 @@ const SleepTracker: React.FC = () => {
             />
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               Sleep | {getHumanReadableSleepTime()}
-            </Typography>
+        </Typography>
           </Stack>
           
           <Stack direction="row" spacing={1} alignItems="center">
@@ -204,7 +204,7 @@ const SleepTracker: React.FC = () => {
               }}
             >
               <HistoryIcon fontSize="small" />
-            </IconButton>
+        </IconButton>
           </Stack>
         </Stack>
         
@@ -219,14 +219,14 @@ const SleepTracker: React.FC = () => {
           {/* Time Controls */}
           <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
-              <TextField
+          <TextField
                 placeholder="Start"
-                type="time"
+            type="time"
                 size="small"
-                fullWidth
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+            fullWidth
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
                 sx={{ 
                   "& .MuiInputBase-root": { height: 36 },
                   "& .MuiInputBase-input": { py: 0.75, px: 1 }
@@ -249,14 +249,14 @@ const SleepTracker: React.FC = () => {
             </Box>
             
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
-              <TextField
+          <TextField
                 placeholder="End"
-                type="time"
+            type="time"
                 size="small"
-                fullWidth
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+            fullWidth
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
                 sx={{ 
                   "& .MuiInputBase-root": { height: 36 },
                   "& .MuiInputBase-input": { py: 0.75, px: 1 }
@@ -275,7 +275,7 @@ const SleepTracker: React.FC = () => {
                 }}
               >
                 End
-              </Typography>
+        </Typography>
             </Box>
           </Box>
           
@@ -294,8 +294,8 @@ const SleepTracker: React.FC = () => {
           >
             {editIndex !== null ? 'Update' : 'Add'}
           </Button>
-        </Box>
-        
+      </Box>
+
         {/* Quick Action Links */}
         <Box sx={{ 
           display: 'flex', 
@@ -381,11 +381,11 @@ const SleepTracker: React.FC = () => {
         <DialogTitle sx={{ p: 3, pb: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Sleep History
+          Sleep History
             </Typography>
-            <IconButton
-              aria-label="close"
-              onClick={() => setHistoryOpen(false)}
+          <IconButton
+            aria-label="close"
+            onClick={() => setHistoryOpen(false)}
               sx={{ 
                 color: 'text.secondary',
                 borderRadius: 'var(--radius-md)',
@@ -394,9 +394,9 @@ const SleepTracker: React.FC = () => {
                   color: 'error.main'
                 }
               }}
-            >
-              <CloseIcon />
-            </IconButton>
+          >
+            <CloseIcon />
+          </IconButton>
           </Stack>
           
           {/* Sleep stats moved here - visual sleep analytics */}
@@ -448,7 +448,7 @@ const SleepTracker: React.FC = () => {
                     secondary={
                       <Typography variant="body2" color="text.secondary">
                         Total: {entry.duration}
-                      </Typography>
+                </Typography>
                     }
                   />
                   <ListItemSecondaryAction>
@@ -462,7 +462,7 @@ const SleepTracker: React.FC = () => {
                         }}
                       >
                         <EditIcon fontSize="small" />
-                      </IconButton>
+                  </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
                       <IconButton 
@@ -471,7 +471,7 @@ const SleepTracker: React.FC = () => {
                         color="error"
                       >
                         <DeleteIcon fontSize="small" />
-                      </IconButton>
+                  </IconButton>
                     </Tooltip>
                   </ListItemSecondaryAction>
                 </ListItem>

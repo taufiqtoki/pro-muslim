@@ -18,7 +18,6 @@ const BottomNavigation: React.FC = () => {
 
   return (
     <Paper 
-      className="glass-effect"
       sx={{ 
         position: 'fixed', 
         bottom: 0, 
@@ -30,9 +29,10 @@ const BottomNavigation: React.FC = () => {
         borderRadius: 0,
         borderTop: '1px solid',
         borderColor: 'divider',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        boxShadow: '0px -1px 4px rgba(0,0,0,0.05)',
+        bgcolor: 'background.paper',
         height: 50,
         '& .MuiBottomNavigationAction-root': {
           maxWidth: 'none',

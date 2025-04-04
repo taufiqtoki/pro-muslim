@@ -60,7 +60,7 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       alignItems: 'center',
       width: 'fit-content',
       margin: '0 auto',
-      gap: 0.5,
+      gap: 0.2,
     }}>
       <IconButton onClick={() => onSeek(-30)} size="small" title="Back 30s">
         <Replay30Icon />
@@ -68,7 +68,7 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       <IconButton onClick={() => onSeek(-10)} size="small" title="Back 10s">
         <Replay10Icon />
       </IconButton>
-      <IconButton onClick={onPrevious} sx={{ p: 0.5 }}>
+      <IconButton onClick={onPrevious} sx={{ p: 0.2 }}>
         <SkipPreviousIcon />
       </IconButton>
       <IconButton onClick={onPlayPause} sx={{ 
@@ -80,7 +80,7 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       }}>
         {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
       </IconButton>
-      <IconButton onClick={onNext} sx={{ p: 0.5 }}>
+      <IconButton onClick={onNext} sx={{ p: 0.2 }}>
         <SkipNextIcon />
       </IconButton>
       <IconButton onClick={() => onSeek(10)} size="small" title="Forward 10s">
@@ -92,15 +92,6 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       <Tooltip title={`Repeat: ${repeatMode}`}>
         <IconButton onClick={() => onRepeatModeChange(getNextRepeatMode(repeatMode))}>
           {getRepeatIcon(repeatMode)}
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={`Shuffle: ${isShuffled ? 'On' : 'Off'}`}>
-        <IconButton 
-          onClick={onShuffleToggle}
-          color={isShuffled ? 'primary' : 'default'}
-          size="small"
-        >
-          <ShuffleIcon />
         </IconButton>
       </Tooltip>
     </Box>

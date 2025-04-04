@@ -3,12 +3,48 @@ import { Typography, Box, Stack, Divider } from "@mui/material";
 import { differenceInHours, differenceInMinutes, format } from 'date-fns';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
 import { useTheme } from '../contexts/ThemeContext';
+import { useRoutine, Routine } from '../hooks/useRoutine';
 
 const ClockWidget: React.FC = () => {
   const [time, setTime] = useState(new Date());
   const { isDark } = useTheme();
-  const bedTime = new Date();
-  bedTime.setHours(22, 30, 0, 0); // 10:30 PM
+  const { routines } = useRoutine();
+  
+  // Find night sleep time from routine, or use default 10:30PM
+  const getNightSleepTime = () => {
+    const defaultBedTime = new Date();
+    defaultBedTime.setHours(22, 30, 0, 0); // Default is 10:30 PM
+    
+    if (!routines || !Array.isArray(routines) || routines.length === 0) {
+      return defaultBedTime;
+    }
+
+    // Find night sleep time from routines
+    const nightSleepRoutine = routines.find(
+      (routine: Routine) => 
+        routine && 
+        (routine.type === 'sleep' || 
+         (routine.title && routine.title.toLowerCase().includes('night')) || 
+         (routine.title && routine.title.toLowerCase().includes('sleep')))
+    );
+
+    if (nightSleepRoutine && nightSleepRoutine.time) {
+      try {
+        const [hours, minutes] = nightSleepRoutine.time.split(':').map(Number);
+        if (!isNaN(hours) && !isNaN(minutes)) {
+          const bedTime = new Date();
+          bedTime.setHours(hours, minutes, 0, 0);
+          return bedTime;
+        }
+      } catch (error) {
+        console.error('Error parsing routine time:', error);
+      }
+    }
+
+    return defaultBedTime;
+  };
+
+  const bedTime = getNightSleepTime();
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
@@ -16,13 +52,31 @@ const ClockWidget: React.FC = () => {
   }, []);
 
   const getTimeRemaining = () => {
-    const now = new Date();
-    if (now > bedTime) {
-      bedTime.setDate(bedTime.getDate() + 1);
+    try {
+      const now = new Date();
+      const sleepTime = getNightSleepTime();
+      
+      if (now > sleepTime) {
+        sleepTime.setDate(sleepTime.getDate() + 1);
+      }
+      
+      const hoursLeft = differenceInHours(sleepTime, now);
+      const minutesLeft = differenceInMinutes(sleepTime, now) % 60;
+      
+      return `${hoursLeft}h ${minutesLeft}m`;
+    } catch (error) {
+      console.error('Error calculating time remaining:', error);
+      return '0h 0m';
     }
-    const hoursLeft = differenceInHours(bedTime, now);
-    const minutesLeft = differenceInMinutes(bedTime, now) % 60;
-    return `${hoursLeft}h ${minutesLeft}m`;
+  };
+
+  const formatBedTimeDisplay = () => {
+    try {
+      return format(bedTime, 'hh:mm a');
+    } catch (error) {
+      console.error('Error formatting bed time:', error);
+      return '10:30 PM';
+    }
   };
 
   return (
@@ -121,7 +175,7 @@ const ClockWidget: React.FC = () => {
           color="grey"
           sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem' } }}
         >
-          10:30 PM
+          {formatBedTimeDisplay()}
         </Typography>
       </Box>
     </Box>

@@ -284,24 +284,24 @@ export const PrayerSettings = () => {
           {error}
         </Alert>
       )}
-
+      
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Autocomplete
-              options={locations}
-              loading={loading}
-              getOptionLabel={(option) => `${option.city}, ${option.country}`}
-              value={selectedLocation}
-              onChange={(_, newValue) => setSelectedLocation(newValue)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Location"
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  fullWidth
-                />
-              )}
+          <Autocomplete
+            options={locations}
+            loading={loading}
+            getOptionLabel={(option) => `${option.city}, ${option.country}`}
+            value={selectedLocation}
+            onChange={(_, newValue) => setSelectedLocation(newValue)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Location"
+                onChange={(e) => setSearchQuery(e.target.value)}
+                fullWidth
+              />
+            )}
               sx={{ flexGrow: 1 }}
             />
             <Button 

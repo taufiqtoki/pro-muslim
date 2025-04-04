@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, IconButton, Grid, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Divider, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem, Tabs, Tab } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, IconButton, Grid, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Divider, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem, Tabs, Tab, Stack } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useAuth } from '../../hooks/useAuth.ts';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase.ts';
+import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext.tsx';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -65,6 +68,8 @@ interface RoutineItem {
 
 const RoutineTab: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [routineItems, setRoutineItems] = useState<RoutineItem[]>([]);
   const [newItem, setNewItem] = useState<{
     title: string;
@@ -271,246 +276,47 @@ const RoutineTab: React.FC = () => {
   }, {} as Record<string, RoutineItem[]>);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>Routine Planner</Typography>
-      
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} aria-label="routine tabs">
-          <Tab label="Daily View" {...a11yProps(0)} />
-          <Tab label="Weekly View" {...a11yProps(1)} />
-        </Tabs>
-      </Box>
-      
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>Add New Routine Item</Typography>
-            
-            <TextField
-              fullWidth
-              label="Title"
-              value={newItem.title}
-              onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            
-            <TextField
-              fullWidth
-              label="Description"
-              multiline
-              rows={2}
-              value={newItem.description}
-              onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-              sx={{ mb: 2 }}
-            />
-            
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel id="day-label">Day</InputLabel>
-              <Select
-                labelId="day-label"
-                value={newItem.day}
-                label="Day"
-                onChange={(e) => setNewItem({ ...newItem, day: e.target.value as string })}
-              >
-                {weekDays.map((day) => (
-                  <MenuItem key={day} value={day}>{day}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel id="time-label">Time</InputLabel>
-              <Select
-                labelId="time-label"
-                value={newItem.time}
-                label="Time"
-                onChange={(e) => setNewItem({ ...newItem, time: e.target.value as string })}
-              >
-                {timeSlots.map((time) => (
-                  <MenuItem key={time} value={time}>{time}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel id="category-label">Category</InputLabel>
-              <Select
-                labelId="category-label"
-                value={newItem.category}
-                label="Category"
-                onChange={(e) => setNewItem({ 
-                  ...newItem, 
-                  category: e.target.value as 'prayer' | 'work' | 'study' | 'self-care' | 'family' | 'other'
-                })}
-              >
-                <MenuItem value="prayer">Prayer</MenuItem>
-                <MenuItem value="work">Work</MenuItem>
-                <MenuItem value="study">Study</MenuItem>
-                <MenuItem value="self-care">Self-care</MenuItem>
-                <MenuItem value="family">Family</MenuItem>
-                <MenuItem value="other">Other</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddItem}
-              disabled={!newItem.title.trim()}
-            >
-              Add to Routine
-            </Button>
-          </Paper>
-        </Grid>
+    <Box sx={{ py: 1 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
+          Routine
+        </Typography>
         
-        <Grid item xs={12} md={8}>
-          {/* Daily View */}
-          <TabPanel value={tabValue} index={0}>
-            <Box sx={{ mb: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel id="view-day-label">Select Day</InputLabel>
-                <Select
-                  labelId="view-day-label"
-                  value={selectedDay}
-                  label="Select Day"
-                  onChange={(e) => setSelectedDay(e.target.value as string)}
-                >
-                  {weekDays.map((day) => (
-                    <MenuItem key={day} value={day}>{day}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-            
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>{selectedDay}&apos;s Routine</Typography>
+        <IconButton
+          onClick={() => navigate('/routine/settings')}
+          size="medium"
+          sx={{ 
+            color: 'primary.main',
+            bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(var(--primary-rgb), 0.05)',
+            '&:hover': {
+              bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.2)' : 'rgba(var(--primary-rgb), 0.1)'
+            }
+          }}
+        >
+          <SettingsIcon fontSize="small" />
+        </IconButton>
+      </Stack>
+
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" gutterBottom>Routine Planner</Typography>
+        
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs value={tabValue} onChange={handleTabChange} aria-label="routine tabs">
+            <Tab label="Daily View" {...a11yProps(0)} />
+            <Tab label="Weekly View" {...a11yProps(1)} />
+          </Tabs>
+        </Box>
+        
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Add New Routine Item</Typography>
               
-              {filteredItems.length === 0 ? (
-                <Typography variant="body1" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                  No routine items for {selectedDay}. Add your first routine item.
-                </Typography>
-              ) : (
-                <List>
-                  {filteredItems.map((item) => (
-                    <React.Fragment key={item.id}>
-                      <ListItem sx={{ py: 2 }}>
-                        <Box sx={{ mr: 2, minWidth: '80px', textAlign: 'center' }}>
-                          <Typography variant="h6">{item.time}</Typography>
-                        </Box>
-                        
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="subtitle1">
-                                {item.title}
-                              </Typography>
-                              <Chip 
-                                label={getCategoryLabel(item.category)} 
-                                size="small" 
-                                color={getCategoryColor(item.category)} 
-                              />
-                            </Box>
-                          }
-                          secondary={item.description}
-                        />
-                        
-                        <ListItemSecondaryAction>
-                          <IconButton edge="end" onClick={() => handleEditStart(item)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton edge="end" onClick={() => handleDeleteItem(item.id)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                      <Divider />
-                    </React.Fragment>
-                  ))}
-                </List>
-              )}
-            </Paper>
-          </TabPanel>
-          
-          {/* Weekly View */}
-          <TabPanel value={tabValue} index={1}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Weekly Routine</Typography>
-              
-              {routineItems.length === 0 ? (
-                <Typography variant="body1" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                  Your weekly routine is empty. Add items to see them here.
-                </Typography>
-              ) : (
-                <Box>
-                  {weekDays.map((day) => (
-                    <Box key={day} sx={{ mb: 3 }}>
-                      <Typography variant="h6" sx={{ mb: 1, bgcolor: 'action.selected', p: 1, borderRadius: 1 }}>
-                        {day}
-                      </Typography>
-                      
-                      {itemsByDay[day]?.length > 0 ? (
-                        <List>
-                          {itemsByDay[day].map((item) => (
-                            <ListItem key={item.id} sx={{ py: 1 }}>
-                              <Box sx={{ mr: 2, minWidth: '80px', textAlign: 'center' }}>
-                                <Typography variant="body1">{item.time}</Typography>
-                              </Box>
-                              
-                              <ListItemText
-                                primary={
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Typography variant="body1">
-                                      {item.title}
-                                    </Typography>
-                                    <Chip 
-                                      label={getCategoryLabel(item.category)} 
-                                      size="small" 
-                                      color={getCategoryColor(item.category)} 
-                                    />
-                                  </Box>
-                                }
-                                secondary={item.description}
-                              />
-                              
-                              <ListItemSecondaryAction>
-                                <IconButton edge="end" size="small" onClick={() => handleEditStart(item)}>
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
-                                <IconButton edge="end" size="small" onClick={() => handleDeleteItem(item.id)}>
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </ListItemSecondaryAction>
-                            </ListItem>
-                          ))}
-                        </List>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 1, pl: 2 }}>
-                          No items scheduled for {day}
-                        </Typography>
-                      )}
-                      
-                      <Divider sx={{ mt: 1 }} />
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </Paper>
-          </TabPanel>
-        </Grid>
-      </Grid>
-      
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-        <DialogTitle>Edit Routine Item</DialogTitle>
-        <DialogContent>
-          {editItem && (
-            <Box sx={{ pt: 1 }}>
               <TextField
                 fullWidth
                 label="Title"
-                value={editItem.title}
-                onChange={(e) => setEditItem({ ...editItem, title: e.target.value })}
+                value={newItem.title}
+                onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
                 sx={{ mb: 2 }}
               />
               
@@ -518,19 +324,19 @@ const RoutineTab: React.FC = () => {
                 fullWidth
                 label="Description"
                 multiline
-                rows={3}
-                value={editItem.description}
-                onChange={(e) => setEditItem({ ...editItem, description: e.target.value })}
+                rows={2}
+                value={newItem.description}
+                onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                 sx={{ mb: 2 }}
               />
               
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="edit-day-label">Day</InputLabel>
+                <InputLabel id="day-label">Day</InputLabel>
                 <Select
-                  labelId="edit-day-label"
-                  value={editItem.day}
+                  labelId="day-label"
+                  value={newItem.day}
                   label="Day"
-                  onChange={(e) => setEditItem({ ...editItem, day: e.target.value as string })}
+                  onChange={(e) => setNewItem({ ...newItem, day: e.target.value as string })}
                 >
                   {weekDays.map((day) => (
                     <MenuItem key={day} value={day}>{day}</MenuItem>
@@ -539,12 +345,12 @@ const RoutineTab: React.FC = () => {
               </FormControl>
               
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="edit-time-label">Time</InputLabel>
+                <InputLabel id="time-label">Time</InputLabel>
                 <Select
-                  labelId="edit-time-label"
-                  value={editItem.time}
+                  labelId="time-label"
+                  value={newItem.time}
                   label="Time"
-                  onChange={(e) => setEditItem({ ...editItem, time: e.target.value as string })}
+                  onChange={(e) => setNewItem({ ...newItem, time: e.target.value as string })}
                 >
                   {timeSlots.map((time) => (
                     <MenuItem key={time} value={time}>{time}</MenuItem>
@@ -553,13 +359,13 @@ const RoutineTab: React.FC = () => {
               </FormControl>
               
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="edit-category-label">Category</InputLabel>
+                <InputLabel id="category-label">Category</InputLabel>
                 <Select
-                  labelId="edit-category-label"
-                  value={editItem.category}
+                  labelId="category-label"
+                  value={newItem.category}
                   label="Category"
-                  onChange={(e) => setEditItem({ 
-                    ...editItem, 
+                  onChange={(e) => setNewItem({ 
+                    ...newItem, 
                     category: e.target.value as 'prayer' | 'work' | 'study' | 'self-care' | 'family' | 'other'
                   })}
                 >
@@ -571,20 +377,241 @@ const RoutineTab: React.FC = () => {
                   <MenuItem value="other">Other</MenuItem>
                 </Select>
               </FormControl>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleEditSave} 
-            variant="contained" 
-            startIcon={<SaveIcon />}
-          >
-            Save Changes
-          </Button>
-        </DialogActions>
-      </Dialog>
+              
+              <Button
+                fullWidth
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddItem}
+                disabled={!newItem.title.trim()}
+              >
+                Add to Routine
+              </Button>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={12} md={8}>
+            {/* Daily View */}
+            <TabPanel value={tabValue} index={0}>
+              <Box sx={{ mb: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel id="view-day-label">Select Day</InputLabel>
+                  <Select
+                    labelId="view-day-label"
+                    value={selectedDay}
+                    label="Select Day"
+                    onChange={(e) => setSelectedDay(e.target.value as string)}
+                  >
+                    {weekDays.map((day) => (
+                      <MenuItem key={day} value={day}>{day}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>{selectedDay}&apos;s Routine</Typography>
+                
+                {filteredItems.length === 0 ? (
+                  <Typography variant="body1" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                    No routine items for {selectedDay}. Add your first routine item.
+                  </Typography>
+                ) : (
+                  <List>
+                    {filteredItems.map((item) => (
+                      <React.Fragment key={item.id}>
+                        <ListItem sx={{ py: 2 }}>
+                          <Box sx={{ mr: 2, minWidth: '80px', textAlign: 'center' }}>
+                            <Typography variant="h6">{item.time}</Typography>
+                          </Box>
+                          
+                          <ListItemText
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="subtitle1">
+                                  {item.title}
+                                </Typography>
+                                <Chip 
+                                  label={getCategoryLabel(item.category)} 
+                                  size="small" 
+                                  color={getCategoryColor(item.category)} 
+                                />
+                              </Box>
+                            }
+                            secondary={item.description}
+                          />
+                          
+                          <ListItemSecondaryAction>
+                            <IconButton edge="end" onClick={() => handleEditStart(item)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton edge="end" onClick={() => handleDeleteItem(item.id)}>
+                              <DeleteIcon />
+                            </IconButton>
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                        <Divider />
+                      </React.Fragment>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            </TabPanel>
+            
+            {/* Weekly View */}
+            <TabPanel value={tabValue} index={1}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>Weekly Routine</Typography>
+                
+                {routineItems.length === 0 ? (
+                  <Typography variant="body1" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                    Your weekly routine is empty. Add items to see them here.
+                  </Typography>
+                ) : (
+                  <Box>
+                    {weekDays.map((day) => (
+                      <Box key={day} sx={{ mb: 3 }}>
+                        <Typography variant="h6" sx={{ mb: 1, bgcolor: 'action.selected', p: 1, borderRadius: 1 }}>
+                          {day}
+                        </Typography>
+                        
+                        {itemsByDay[day]?.length > 0 ? (
+                          <List>
+                            {itemsByDay[day].map((item) => (
+                              <ListItem key={item.id} sx={{ py: 1 }}>
+                                <Box sx={{ mr: 2, minWidth: '80px', textAlign: 'center' }}>
+                                  <Typography variant="body1">{item.time}</Typography>
+                                </Box>
+                                
+                                <ListItemText
+                                  primary={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Typography variant="body1">
+                                        {item.title}
+                                      </Typography>
+                                      <Chip 
+                                        label={getCategoryLabel(item.category)} 
+                                        size="small" 
+                                        color={getCategoryColor(item.category)} 
+                                      />
+                                    </Box>
+                                  }
+                                  secondary={item.description}
+                                />
+                                
+                                <ListItemSecondaryAction>
+                                  <IconButton edge="end" size="small" onClick={() => handleEditStart(item)}>
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton edge="end" size="small" onClick={() => handleDeleteItem(item.id)}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </ListItemSecondaryAction>
+                              </ListItem>
+                            ))}
+                          </List>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" sx={{ py: 1, pl: 2 }}>
+                            No items scheduled for {day}
+                          </Typography>
+                        )}
+                        
+                        <Divider sx={{ mt: 1 }} />
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Paper>
+            </TabPanel>
+          </Grid>
+        </Grid>
+        
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+          <DialogTitle>Edit Routine Item</DialogTitle>
+          <DialogContent>
+            {editItem && (
+              <Box sx={{ pt: 1 }}>
+                <TextField
+                  fullWidth
+                  label="Title"
+                  value={editItem.title}
+                  onChange={(e) => setEditItem({ ...editItem, title: e.target.value })}
+                  sx={{ mb: 2 }}
+                />
+                
+                <TextField
+                  fullWidth
+                  label="Description"
+                  multiline
+                  rows={3}
+                  value={editItem.description}
+                  onChange={(e) => setEditItem({ ...editItem, description: e.target.value })}
+                  sx={{ mb: 2 }}
+                />
+                
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="edit-day-label">Day</InputLabel>
+                  <Select
+                    labelId="edit-day-label"
+                    value={editItem.day}
+                    label="Day"
+                    onChange={(e) => setEditItem({ ...editItem, day: e.target.value as string })}
+                  >
+                    {weekDays.map((day) => (
+                      <MenuItem key={day} value={day}>{day}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="edit-time-label">Time</InputLabel>
+                  <Select
+                    labelId="edit-time-label"
+                    value={editItem.time}
+                    label="Time"
+                    onChange={(e) => setEditItem({ ...editItem, time: e.target.value as string })}
+                  >
+                    {timeSlots.map((time) => (
+                      <MenuItem key={time} value={time}>{time}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="edit-category-label">Category</InputLabel>
+                  <Select
+                    labelId="edit-category-label"
+                    value={editItem.category}
+                    label="Category"
+                    onChange={(e) => setEditItem({ 
+                      ...editItem, 
+                      category: e.target.value as 'prayer' | 'work' | 'study' | 'self-care' | 'family' | 'other'
+                    })}
+                  >
+                    <MenuItem value="prayer">Prayer</MenuItem>
+                    <MenuItem value="work">Work</MenuItem>
+                    <MenuItem value="study">Study</MenuItem>
+                    <MenuItem value="self-care">Self-care</MenuItem>
+                    <MenuItem value="family">Family</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleEditSave} 
+              variant="contained" 
+              startIcon={<SaveIcon />}
+            >
+              Save Changes
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Box>
   );
 };
