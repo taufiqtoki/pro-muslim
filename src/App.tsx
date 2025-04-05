@@ -13,6 +13,7 @@ import Profile from "./pages/Profile";
 import Report from "./pages/Report";
 import AudioPlayer from "./components/AudioPlayer";
 import TasbeehCounterRoute from "./pages/TasbeehCounterRoute";
+import AlarmClock from "./components/AlarmClock";
 import { ThemeProvider } from './contexts/ThemeContext';
 import { StopwatchProvider } from './contexts/StopwatchContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -46,6 +47,7 @@ export const App: React.FC = () => {
                           <Route path="report" element={<Report />} />
                           <Route path="settings" element={<Settings />} />
                           <Route path="player" element={<AudioPlayer />} />
+                          <Route path="alarm" element={<AlarmClock />} />
                         </Route>
                         <Route path="/tasbeeh-counter/:id" element={<TasbeehCounterRoute />} />
                       </Routes>

@@ -156,7 +156,7 @@ const TasbeehSettings = () => {
           // Sort by order
           const sortedList = [...tasbeehList].sort((a, b) => {
             return (a.order ?? 0) - (b.order ?? 0);
-          });
+        });
         
         // Update state and local storage
           setTasbeehs(sortedList);
@@ -388,8 +388,8 @@ const TasbeehSettings = () => {
                   onDelete={handleDelete}
                   onReorder={handleReorderTasbeehs}
                 />
-              ))
-            )}
+            ))
+          )}
           </Box>
         </DndProvider>
       )}

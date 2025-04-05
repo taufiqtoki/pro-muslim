@@ -149,7 +149,7 @@ const PrayerTimesWidget: React.FC = () => {
     return (
       <Box 
         sx={{ 
-          p: 1.5, 
+          p: { xs: 0.75, sm: 1 }, 
           borderRadius: 'var(--radius-md)',
           bgcolor: isActive 
             ? 'rgba(var(--primary-rgb), 0.1)' 
@@ -177,16 +177,16 @@ const PrayerTimesWidget: React.FC = () => {
           disabled={!timePassed}
           sx={{
             position: 'absolute',
-            top: 6,
-            right: 6,
+            top: 4,
+            right: 4,
             opacity: timePassed ? 1 : 0.5,
             color: isPrayed ? 'success.main' : 'text.secondary',
-            p: 0.5
+            p: 0.25
           }}
         >
           {isPrayed ? 
-            <CheckCircleIcon fontSize="small" color="success" /> : 
-            <RadioButtonUncheckedIcon fontSize="small" />
+            <CheckCircleIcon sx={{ fontSize: '0.85rem' }} color="success" /> : 
+            <RadioButtonUncheckedIcon sx={{ fontSize: '0.85rem' }} />
           }
         </IconButton>
         
@@ -194,13 +194,13 @@ const PrayerTimesWidget: React.FC = () => {
           variant="body2" 
           sx={{ 
             color: 'text.secondary',
-            mb: 0.5,
-            ml: 2,
+            mb: 0,
+            ml: 1.5,
             alignSelf: 'flex-start',
             fontWeight: 500,
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
-            fontSize: '0.7rem'
+            fontSize: '0.65rem'
           }}
         >
           {prayer}
@@ -212,17 +212,17 @@ const PrayerTimesWidget: React.FC = () => {
           sx={{ 
             fontWeight: isActive ? 700 : 600,
             letterSpacing: '-0.5px',
-            fontSize: { xs: '1.5rem', sm: '1.8rem' },
-            lineHeight: 1.1,
+            fontSize: { xs: '1.25rem', sm: '1.5rem' },
+            lineHeight: 1,
             textAlign: 'center',
-            py: 1
+            py: 0.5
           }}
         >
           {time ? format(new Date(time), 'hh:mm') : '--:--'}
           <Typography 
             component="span" 
             sx={{ 
-              fontSize: '0.9rem',
+              fontSize: '0.7rem',
               ml: 0.5,
               color: isActive ? 'primary.main' : 'text.secondary',
               fontWeight: 500,
@@ -281,10 +281,10 @@ const PrayerTimesWidget: React.FC = () => {
         direction="row" 
         alignItems="center" 
         justifyContent="space-between"
-        sx={{ mb: 1 }}
+        sx={{ mb: 0.5 }}
       >
         <Typography 
-          variant="h6" 
+          variant="subtitle2" 
           component="h2"
           sx={{ 
             fontWeight: 600,
@@ -302,26 +302,28 @@ const PrayerTimesWidget: React.FC = () => {
             bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(var(--primary-rgb), 0.05)',
             '&:hover': {
               bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.2)' : 'rgba(var(--primary-rgb), 0.1)'
-            }
+            },
+            width: 20,
+            height: 20
           }}
         >
-          <SettingsIcon fontSize="small" />
+          <SettingsIcon sx={{ fontSize: '0.85rem' }} />
         </IconButton>
       </Stack>
 
       {settings?.location && (
         <Box 
           sx={{ 
-            mb: 1.5,
+            mb: 0.5,
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
             color: 'text.secondary',
-            fontSize: '0.85rem'
+            fontSize: '0.75rem'
           }}
         >
-          <LocationOnIcon sx={{ fontSize: '1rem' }} />
-          <Typography variant="body2" noWrap>
+          <LocationOnIcon sx={{ fontSize: '0.85rem' }} />
+          <Typography variant="caption" noWrap>
             {settings.location.city}, {settings.location.country}
           </Typography>
         </Box>
@@ -330,8 +332,8 @@ const PrayerTimesWidget: React.FC = () => {
       {currentOrNext && remainingTime && (
         <Box 
           sx={{ 
-            p: 1.5, 
-            mb: 2, 
+            p: 1, 
+            mb: 1, 
             borderRadius: 'var(--radius-md)', 
             bgcolor: 'transparent',
             border: '1px solid',
@@ -345,21 +347,21 @@ const PrayerTimesWidget: React.FC = () => {
             flexWrap: 'wrap'
           }}>
             <Typography 
-              variant="body1" 
+              variant="body2" 
               color="primary.main" 
               sx={{ 
                 fontWeight: 700,
-                fontSize: { xs: '0.9rem', sm: '1rem' } 
+                fontSize: { xs: '0.75rem', sm: '0.85rem' } 
               }}
             >
-              Be Ready for <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{currentOrNext.name}</Box> in <Box component="span" sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, fontWeight: 800 }}>{remainingTime.hours}h {remainingTime.minutes}m</Box>
+              Be Ready for <Box component="span" sx={{ fontSize: { xs: '0.85rem', sm: '1rem' }, fontWeight: 800 }}>{currentOrNext.name}</Box> in <Box component="span" sx={{ fontSize: { xs: '0.85rem', sm: '1rem' }, fontWeight: 800 }}>{remainingTime.hours}h {remainingTime.minutes}m</Box>
             </Typography>
           </Box>
         </Box>
       )}
 
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-        <Grid container spacing={1}>
+        <Grid container spacing={0.5}>
           <Grid item xs={6} sm={4} md={4}>
             {renderPrayerTime('Tahajjud', tahajjudTime)}
           </Grid>

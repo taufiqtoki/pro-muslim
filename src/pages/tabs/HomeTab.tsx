@@ -9,11 +9,6 @@ import {
   useMediaQuery,
   useTheme as useMuiTheme
 } from '@mui/material';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import MosqueIcon from '@mui/icons-material/Mosque';
-import TimerIcon from '@mui/icons-material/Timer';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import BedtimeIcon from '@mui/icons-material/Bedtime';
 import Stopwatch from '../../components/Stopwatch';
 import PrayerTimesWidget from '../../components/prayer/PrayerTimesWidget';
 import ClockWidget from '../../components/ClockWidget';
@@ -79,6 +74,7 @@ const HomeTab: React.FC = () => {
         height: height || '100%',
         background: isDark ? 'rgba(18, 18, 18, 0.8)' : 'rgba(255, 255, 255, 0.8)',
         borderRadius: 3,
+        overflow: 'hidden',
         border: `1px solid ${isDark ? 'rgba(212, 175, 55, 0.1)' : 'rgba(0, 0, 0, 0.05)'}`,
         transition: 'transform 0.3s ease, box-shadow 0.3s ease',
         '&:hover': {
@@ -87,7 +83,7 @@ const HomeTab: React.FC = () => {
         }
       }}
     >
-      <CardContent sx={{ p: 3, height: '100%', overflow: 'auto' }}>
+      <CardContent sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflow: 'hidden' }}>
         {loading ? (
           <>
             <Skeleton variant="rectangular" height={100} sx={{ mb: 2 }} />
@@ -103,21 +99,21 @@ const HomeTab: React.FC = () => {
 
   // Mobile layout
   const MobileLayout = () => (
-    <Grid container spacing={3}>
+    <Grid container spacing={2}>
       <Grid item xs={12}>
-        <SimpleCard height="140px">
+        <SimpleCard height="120px">
           <ClockWidget />
         </SimpleCard>
       </Grid>
       
       <Grid item xs={12}>
-        <SimpleCard>
+        <SimpleCard height="330px">
           <PrayerTimesWidget />
         </SimpleCard>
       </Grid>
       
       <Grid item xs={12}>
-        <SimpleCard height="140px">
+        <SimpleCard height="120px">
           <Stopwatch />
         </SimpleCard>
       </Grid>
@@ -129,7 +125,7 @@ const HomeTab: React.FC = () => {
       </Grid>
       
       <Grid item xs={12}>
-        <SimpleCard>
+        <SimpleCard height="130px">
           <SleepTracker />
         </SimpleCard>
       </Grid>
@@ -138,24 +134,24 @@ const HomeTab: React.FC = () => {
 
   // PC layout
   const PCLayout = () => (
-    <Grid container spacing={3}>
+    <Grid container spacing={2}>
       {/* Left Column: Clock, Stopwatch, Sleep Tracker */}
       <Grid item md={6}>
-        <Grid container spacing={3}>
-          <Grid item md={12}>
-            <SimpleCard height="140px">
+        <Grid container spacing={2} sx={{ height: '100%' }}>
+          <Grid item md={12} sx={{ height: '33.33%', minHeight: '120px' }}>
+            <SimpleCard height="100%">
               <ClockWidget />
             </SimpleCard>
           </Grid>
           
-          <Grid item md={12}>
-            <SimpleCard height="140px">
+          <Grid item md={12} sx={{ height: '33.33%', minHeight: '120px' }}>
+            <SimpleCard height="100%">
               <Stopwatch />
             </SimpleCard>
           </Grid>
           
-          <Grid item md={12}>
-            <SimpleCard height="180px">
+          <Grid item md={12} sx={{ height: '33.33%', minHeight: '120px' }}>
+            <SimpleCard height="100%">
               <SleepTracker />
             </SimpleCard>
           </Grid>
@@ -164,14 +160,14 @@ const HomeTab: React.FC = () => {
       
       {/* Right Column: Prayer Times Widget, Tasbeeh Tracker */}
       <Grid item md={6}>
-        <Grid container spacing={3}>
-          <Grid item md={12} sx={{ height: '60%', minHeight: '400px' }}>
+        <Grid container spacing={2} sx={{ height: '100%' }}>
+          <Grid item md={12} sx={{ height: '50%', minHeight: '320px' }}>
             <SimpleCard height="100%">
               <PrayerTimesWidget />
             </SimpleCard>
           </Grid>
           
-          <Grid item md={12} sx={{ height: '40%', minHeight: '150px' }}>
+          <Grid item md={12} sx={{ height: '33.33%', minHeight: '120px' }}>
             <SimpleCard height="100%">
               <TasbeehTracker initialTasbeehs={initialTasbeehs} />
             </SimpleCard>
@@ -182,7 +178,10 @@ const HomeTab: React.FC = () => {
   );
 
   return (
-    <Box sx={{ animation: 'fadeIn 0.5s ease-in-out' }}>
+    <Box sx={{ 
+      animation: 'fadeIn 0.5s ease-in-out',
+      overflow: 'hidden'
+    }}>
       {/* Main Widgets */}
       {isPC ? <PCLayout /> : <MobileLayout />}
     </Box>

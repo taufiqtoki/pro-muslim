@@ -24,6 +24,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import PauseIcon from '@mui/icons-material/Pause';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import TimerIcon from '@mui/icons-material/Timer';
+import AlarmIcon from '@mui/icons-material/Alarm';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import CloseIcon from '@mui/icons-material/Close';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
@@ -210,6 +211,27 @@ const Stopwatch: React.FC = () => {
             width: { xs: 'auto', sm: 'auto' },
             flexShrink: 0
           }}>
+            <Tooltip title="Alarm">
+              <IconButton
+                onClick={() => navigate('/alarm')}
+                size="small"
+                sx={{ 
+                  p: { xs: 0.25, sm: 0.5 },
+                  bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    color: 'primary.main'
+                  },
+                  width: 34,
+                  height: 34,
+                  minWidth: 'auto'
+                }}
+              >
+                <AlarmIcon sx={{ fontSize: '1.5rem' }} />
+              </IconButton>
+            </Tooltip>
+            
             <Tooltip title="Calculator">
               <IconButton
                 onClick={() => setIsCalculatorOpen(true)}

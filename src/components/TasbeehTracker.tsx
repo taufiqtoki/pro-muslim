@@ -50,15 +50,15 @@ const EmptyTasbeehList = ({ onAddClick }: { onAddClick: () => void }) => (
       bgcolor: 'background.paper',
       border: '1px dashed',
       borderColor: 'divider',
-      height: '100px',
+      height: '90px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center'
     }}
   >
-    <TimelineIcon sx={{ fontSize: 30, color: 'text.secondary', mb: 0.5 }} />
-    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+    <TimelineIcon sx={{ fontSize: 24, color: 'text.secondary', mb: 0.5 }} />
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
       Your tasbeeh list is empty
     </Typography>
     <Button 
@@ -69,7 +69,7 @@ const EmptyTasbeehList = ({ onAddClick }: { onAddClick: () => void }) => (
       sx={{ 
         borderRadius: 'var(--radius-pill)',
         textTransform: 'none',
-        py: 0.5
+        py: 0.25
       }}
     >
       Add First Tasbeeh
@@ -375,15 +375,11 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
     return (
       <Box sx={{ 
         width: '100%', 
-        height: '100px',
-        overflow: 'auto',
-        scrollbarWidth: 'thin',
+        height: '90px',
+        overflow: 'hidden',
+        scrollbarWidth: 'none',
         '&::-webkit-scrollbar': {
-          width: '4px',
-        },
-        '&::-webkit-scrollbar-thumb': {
-          backgroundColor: 'rgba(0,0,0,0.2)',
-          borderRadius: '4px',
+          display: 'none',
         }
       }}>
         <Box>
@@ -397,12 +393,12 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
           
           {remainingCount > 0 && (
             <Box 
-              sx={{ 
+        sx={{ 
                 width: '100%', 
-                p: 0.75, 
+                p: 0.5, 
                 textAlign: 'center',
                 color: 'primary.main',
-                fontSize: '0.8rem',
+                fontSize: '0.75rem',
                 cursor: 'pointer',
                 borderRadius: 'var(--radius-md)',
                 border: '1px dashed',
@@ -417,8 +413,8 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
             </Box>
           )}
         </Box>
-      </Box>
-    );
+    </Box>
+  );
   }, [tasbeehItems, handleOpenDialog, handleOpenCounter, goToSettings]);
 
   // Main render

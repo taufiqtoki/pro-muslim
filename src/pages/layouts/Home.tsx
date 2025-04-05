@@ -72,7 +72,7 @@ export const Home: React.FC = () => {
         elevation={1}
         sx={{ 
           bgcolor: theme.palette.background.paper,
-          height: '50px',
+          height: '60px',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
           borderBottom: 'none',
@@ -83,7 +83,7 @@ export const Home: React.FC = () => {
           <Toolbar 
             disableGutters 
             sx={{ 
-              minHeight: '50px !important',
+              minHeight: '60px !important',
               px: { xs: 0.75, sm: 1 },
               py: 0.5
             }}
@@ -261,7 +261,8 @@ export const Home: React.FC = () => {
           className="content custom-scrollbar fade-in"
           sx={{ 
             pb: 10,
-            pt: 2
+            pt: 2,
+            overflow: 'hidden'
           }}
         >
           <Outlet />
