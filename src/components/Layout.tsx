@@ -218,7 +218,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           px: { xs: 2, sm: 3, md: 4 }
         }}
       >
-        <Container maxWidth="lg">
+        <Container maxWidth="xl">
           <Paper
             elevation={0}
             sx={{

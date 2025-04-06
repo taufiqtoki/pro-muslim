@@ -149,7 +149,7 @@ const PrayerTimesWidget: React.FC = () => {
     return (
       <Box 
         sx={{ 
-          p: { xs: 0.75, sm: 1 }, 
+          p: { xs: 0.75, sm: 0.75 }, 
           borderRadius: 'var(--radius-md)',
           bgcolor: isActive 
             ? 'rgba(var(--primary-rgb), 0.1)' 
@@ -354,7 +354,7 @@ const PrayerTimesWidget: React.FC = () => {
                 fontSize: { xs: '0.75rem', sm: '0.85rem' } 
               }}
             >
-              Be Ready for <Box component="span" sx={{ fontSize: { xs: '0.85rem', sm: '1rem' }, fontWeight: 800 }}>{currentOrNext.name}</Box> in <Box component="span" sx={{ fontSize: { xs: '0.85rem', sm: '1rem' }, fontWeight: 800 }}>{remainingTime.hours}h {remainingTime.minutes}m</Box>
+              Be Ready for  <Box component="span" sx={{ fontSize: { xs: '1.25rem', sm: '1.25rem' }, fontWeight: 500 }}>{currentOrNext.name}</Box>  in  <Box component="span" sx={{ fontSize: { xs: '1.25rem', sm: '1.25rem' }, fontWeight: 500 }}>{remainingTime.hours}h {remainingTime.minutes}m</Box>
             </Typography>
           </Box>
         </Box>

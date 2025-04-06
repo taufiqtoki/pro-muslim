@@ -99,9 +99,9 @@ const Stopwatch: React.FC = () => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        p: { xs: 0, sm: 0 },
-        m: 0
+        justifyContent: "center",
+        pt: 2
+
       }}>
         {/* Main Content with Divider */}
         <Stack 
@@ -109,7 +109,6 @@ const Stopwatch: React.FC = () => {
           spacing={ { xs: 0.5, sm: 1 } }
           divider={<Divider orientation="vertical" flexItem />}
           alignItems="center"
-          justifyContent="space-between"
           sx={{ flexGrow: 1, m: 0, p: 0 }}
         >
           {/* Main time display */}
@@ -206,7 +205,8 @@ const Stopwatch: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             gap: 0.5,
-            p: { xs: 0.25, sm: 0.5 },
+            pb: 0,
+            m: 0,
             borderRadius: 'var(--radius-md)',
             width: { xs: 'auto', sm: 'auto' },
             flexShrink: 0

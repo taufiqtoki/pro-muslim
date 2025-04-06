@@ -80,7 +80,14 @@ const ClockWidget: React.FC = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'row', height: '100%', alignItems: 'center' }}>
+    <Box sx={{ 
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'row',
+      justifyContent: "center",
+      alignItems: "center",
+      pt: 1.5
+    }}>
       {/* Current Time (70%) */}
       <Box sx={{ flexBasis: '70%', textAlign: 'center', pr: 2 }}>
         <Typography 

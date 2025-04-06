@@ -24,7 +24,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  useTheme as useMuiTheme
+  useTheme as useMuiTheme,
+  useMediaQuery
 } from '@mui/material';
 import { differenceInMinutes, addDays, parse, format, startOfDay, isAfter, isBefore, setHours, addMinutes } from 'date-fns';
 import HistoryIcon from '@mui/icons-material/History';
@@ -61,6 +62,8 @@ interface SleepEntry {
 
 const SleepTracker: React.FC = () => {
   const { isDark } = useTheme();
+  const muiTheme = useMuiTheme();
+  const isWideEnough = useMediaQuery('(min-width:400px)');
   const [startTime, setStartTime] = useState<string>('22:30');
   const [endTime, setEndTime] = useState<string>('05:30');
   const [totalMinutes, setTotalMinutes] = useState<number>(0);
@@ -73,7 +76,6 @@ const SleepTracker: React.FC = () => {
   const [targetMinutes, setTargetMinutes] = useState<number>(300); // Default 5 hours
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [newTargetMinutes, setNewTargetMinutes] = useState<number>(300); // For input form
-  const muiTheme = useMuiTheme();
 
   // Constants
   const DAY_RESET_HOUR = 20; // 8 PM
@@ -90,7 +92,7 @@ const SleepTracker: React.FC = () => {
     if (storedHistory) {
       try {
         const history = JSON.parse(storedHistory) as SleepEntry[];
-        setSleepHistory(history);
+      setSleepHistory(history);
         
         // Process and group sleep entries by day (8 PM to 8 PM)
         const groupedRecords = groupSleepEntriesByDay(history);
@@ -123,25 +125,32 @@ const SleepTracker: React.FC = () => {
     
     const now = new Date();
     const today = format(now, 'yyyy-MM-dd');
-    const yesterday = format(addDays(now, -1), 'yyyy-MM-dd');
     
     // Parse start and end times
     const startDateTime = parse(`${today} ${startTime}`, 'yyyy-MM-dd HH:mm', new Date());
     let endDateTime = parse(`${today} ${endTime}`, 'yyyy-MM-dd HH:mm', new Date());
     
-    // Handle overnight sleep (if end time is before start time, assume it's the next day)
-    if (endDateTime < startDateTime) {
-      endDateTime = parse(`${format(addDays(now, 1), 'yyyy-MM-dd')} ${endTime}`, 'yyyy-MM-dd HH:mm', new Date());
+    // Handle overnight sleep or identical times
+    // If end time is before or equal to start time, assume it's the next day
+    if (isBefore(endDateTime, startDateTime) || startTime === endTime) {
+      const tomorrow = addDays(now, 1);
+      endDateTime = parse(`${format(tomorrow, 'yyyy-MM-dd')} ${endTime}`, 'yyyy-MM-dd HH:mm', new Date());
     }
     
+    // Calculate duration in minutes
     const minutes = differenceInMinutes(endDateTime, startDateTime);
+    
+    // Ensure we have at least 1 minute difference for identical times
+    const adjustedMinutes = minutes === 0 ? 
+      (startTime === endTime ? 24 * 60 : 1) : // 24 hours if times are identical
+      minutes;
     
     // Create new sleep entry
     const newEntry: SleepEntry = {
       id: Date.now().toString(),
       start: startTime,
       end: endTime,
-      duration: formatTime(minutes),
+      duration: formatTime(adjustedMinutes),
       startDate: format(startDateTime, 'yyyy-MM-dd'),
       endDate: format(endDateTime, 'yyyy-MM-dd')
     };
@@ -165,17 +174,17 @@ const SleepTracker: React.FC = () => {
     setDailySleepRecords(groupedRecords);
     
     // Update total minutes for today
-    const sleepDay = getSleepDayFromDateAndTime(format(startDateTime, 'yyyy-MM-dd'), startTime);
-    const todayRecord = groupedRecords.find(record => record.date === sleepDay);
+    const currentDay = getCurrentSleepDay();
+    const todayRecord = groupedRecords.find(record => record.date === currentDay);
     
     if (todayRecord) {
       setTotalMinutes(todayRecord.totalMinutes);
       setDisplayTime(formatTime(todayRecord.totalMinutes));
     }
-    
+
     setStartTime('');
     setEndTime('');
-    
+
     // Save to localStorage
     localStorage.setItem('sleepHistory', JSON.stringify(updatedHistory));
   };
@@ -185,10 +194,10 @@ const SleepTracker: React.FC = () => {
     
     if (entryIndex !== -1) {
       const entry = sleepHistory[entryIndex];
-      setStartTime(entry.start);
-      setEndTime(entry.end);
+    setStartTime(entry.start);
+    setEndTime(entry.end);
       setEditIndex(entryIndex);
-      setHistoryOpen(false);
+    setHistoryOpen(false);
     }
   };
 
@@ -197,8 +206,8 @@ const SleepTracker: React.FC = () => {
     
     if (entryIndex !== -1) {
       const updatedHistory = sleepHistory.filter((_, i) => i !== entryIndex);
-      setSleepHistory(updatedHistory);
-      
+    setSleepHistory(updatedHistory);
+
       // Update grouped records
       const groupedRecords = groupSleepEntriesByDay(updatedHistory);
       setDailySleepRecords(groupedRecords);
@@ -216,7 +225,7 @@ const SleepTracker: React.FC = () => {
       }
       
       // Save to localStorage
-      localStorage.setItem('sleepHistory', JSON.stringify(updatedHistory));
+    localStorage.setItem('sleepHistory', JSON.stringify(updatedHistory));
     }
   };
   
@@ -227,8 +236,25 @@ const SleepTracker: React.FC = () => {
   };
 
   const parseDuration = (duration: string) => {
+    try {
+      // Check if duration is in HH:MM format
+      if (duration.includes(':')) {
     const [hours, minutes] = duration.split(':').map(Number);
-    return hours * 60 + minutes;
+        // Handle invalid values
+        if (isNaN(hours) || isNaN(minutes)) {
+          console.error('Invalid duration format:', duration);
+          return 0;
+        }
+        return (hours * 60) + minutes;
+      } else {
+        // Try to parse as a number directly
+        const mins = parseInt(duration, 10);
+        return isNaN(mins) ? 0 : mins;
+      }
+    } catch (error) {
+      console.error('Error parsing duration:', error);
+      return 0;
+    }
   };
 
   const formatTime = (minutes: number) => {
@@ -311,9 +337,15 @@ const SleepTracker: React.FC = () => {
     
     // Group entries by their sleep day (based on start time)
     entries.forEach(entry => {
-      // If the entry has startDate use it, otherwise derive from the time
-      const startDate = entry.startDate || getDateFromTimeString(entry.start);
-      const sleepDay = getSleepDayFromDateAndTime(startDate, entry.start);
+      // Make sure we have valid dates
+      if (!entry.startDate) {
+        console.warn('Entry missing startDate, using current date', entry);
+        entry.startDate = format(new Date(), 'yyyy-MM-dd');
+      }
+      
+      // Use the entry's existing startDate (already determined when entry was created)
+      // For backwards compatibility check if startDate exists
+      const sleepDay = entry.startDate;
       
       if (!groupedEntries[sleepDay]) {
         groupedEntries[sleepDay] = [];
@@ -325,8 +357,18 @@ const SleepTracker: React.FC = () => {
     // Convert to array of DailySleepRecord
     return Object.keys(groupedEntries).map(date => {
       const dayEntries = groupedEntries[date];
+      
+      // Calculate total minutes from all entries for this day
       const totalMinutes = dayEntries.reduce((total, entry) => {
-        return total + parseDuration(entry.duration);
+        // Make sure we have valid duration
+        if (!entry.duration) {
+          console.warn('Entry missing duration', entry);
+          return total;
+        }
+        
+        // Parse the duration and add to total
+        const durationMinutes = parseDuration(entry.duration);
+        return total + durationMinutes;
       }, 0);
       
       return {
@@ -342,23 +384,42 @@ const SleepTracker: React.FC = () => {
   
   // Determine the sleep day based on date and time
   const getSleepDayFromDateAndTime = (dateStr: string, timeStr: string): string => {
-    const date = new Date(dateStr);
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    
-    date.setHours(hours, minutes, 0, 0);
-    
-    // If time is after 8 PM, it belongs to this day
-    // If time is before 8 PM, it belongs to previous day's period
-    if (hours < DAY_RESET_HOUR) {
-      date.setDate(date.getDate() - 1);
+    try {
+      // Make sure we have a valid date
+      const dateObj = new Date(dateStr);
+      if (isNaN(dateObj.getTime())) {
+        // If date is invalid, use today's date
+        const now = new Date();
+        return format(now, 'yyyy-MM-dd');
+      }
+      
+      // Parse the hours and minutes
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      
+      // Create a new date with correct hours and minutes
+      const date = new Date(dateStr);
+      date.setHours(hours, minutes, 0, 0);
+      
+      // If time is before DAY_RESET_HOUR, it belongs to previous day
+      // This is correct for normal sleep tracking (sleep starting before cutoff belongs to previous day)
+      if (hours < DAY_RESET_HOUR) {
+        // No date change needed - the date already represents the correct sleep day
+        return format(date, 'yyyy-MM-dd');
+      } else {
+        // After cutoff hour, the sleep belongs to this day
+        return format(date, 'yyyy-MM-dd');
+      }
+    } catch (error) {
+      console.error('Error in getSleepDayFromDateAndTime:', error);
+      // Return today's date as fallback
+      return format(new Date(), 'yyyy-MM-dd');
     }
-    
-    return format(date, 'yyyy-MM-dd');
   };
   
   // Helper to get date from time string using current date
   const getDateFromTimeString = (timeStr: string): string => {
     const now = new Date();
+    // Always return today's actual date, without any logic about sleep days
     return format(now, 'yyyy-MM-dd');
   };
   
@@ -424,10 +485,9 @@ const SleepTracker: React.FC = () => {
 
   // Add handler for deleting a day record
   const handleDeleteDay = (date: string) => {
-    // Filter out all entries for this day
+    // Filter out all entries for this day (using startDate)
     const filteredHistory = sleepHistory.filter(entry => {
-      const sleepDay = getSleepDayFromDateAndTime(entry.startDate, entry.start);
-      return sleepDay !== date;
+      return entry.startDate !== date;
     });
     
     setSleepHistory(filteredHistory);
@@ -437,7 +497,7 @@ const SleepTracker: React.FC = () => {
     setDailySleepRecords(groupedRecords);
     
     // Update total minutes for today if we deleted today
-    const today = getCurrentSleepDay();
+    const today = format(new Date(), 'yyyy-MM-dd');
     if (date === today) {
       setTotalMinutes(0);
       setDisplayTime('00:00');
@@ -448,7 +508,7 @@ const SleepTracker: React.FC = () => {
   };
 
   return (
-    <Box sx={{ position: 'relative' }}>
+    <Box sx={{ position: 'relative', mb: 2 }}>
       {/* Compact View - New Horizontal Design */}
       <Paper 
         elevation={0} 
@@ -461,8 +521,8 @@ const SleepTracker: React.FC = () => {
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
-          pt: 0.75,
-          pb: 0.75,
+          pt: 0.5,
+          pb: 0.5,
           overflow: 'hidden'
         }}
       >
@@ -471,9 +531,9 @@ const SleepTracker: React.FC = () => {
           direction="row" 
           alignItems="center"
           justifyContent="space-between"
-          sx={{ mb: 1, width: '100%', px: 2 }}
+          sx={{ mb: 0.5, width: '100%', px: { xs: 1, sm: 1.5 } }}
         >
-          <Stack direction="row" spacing={0.5} alignItems="center">
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}> 
             <BedtimeIcon 
               color="primary" 
               fontSize="small" 
@@ -519,24 +579,32 @@ const SleepTracker: React.FC = () => {
               }}
             >
               <HistoryIcon sx={{ fontSize: '1rem' }} />
-            </IconButton>
+        </IconButton>
           </Stack>
         </Stack>
         
-        {/* Main Content - Time Input Controls */}
+        {/* Main Content - Time Input Controls - Responsive Layout (Based on 350px) */}
         <Box 
           sx={{ 
             display: 'flex', 
-            alignItems: 'center',
+            flexDirection: isWideEnough ? 'row' : 'column',
+            alignItems: isWideEnough ? 'center' : 'stretch', 
             justifyContent: 'space-between',
-            gap: 1.5,
-            mb: 1.5,
+            gap: { xs: 0.75, sm: 1 }, 
+            mb: 0.75, 
             width: '100%',
-            px: 2
+            px: { xs: 1, sm: 1.5 }
           }}
         >
-          {/* Time Controls */}
-          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Time Controls Block */}
+          <Box sx={{ 
+              width: isWideEnough ? 'auto' : '100%',
+              flexGrow: isWideEnough ? 1 : 0, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: { xs: 0.75, sm: 0.75 }
+          }}>
+            {/* Start Time TextField */} 
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
               <TextField
                 placeholder="Start"
@@ -547,8 +615,8 @@ const SleepTracker: React.FC = () => {
                 onChange={(e) => setStartTime(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 sx={{ 
-                  "& .MuiInputBase-root": { height: 36 },
-                  "& .MuiInputBase-input": { py: 0.5, px: 0.75 }
+                  "& .MuiInputBase-root": { height: 32 },
+                  "& .MuiInputBase-input": { py: 0.4, px: 0.75 }
                 }}
               />
               <Typography
@@ -567,6 +635,7 @@ const SleepTracker: React.FC = () => {
               </Typography>
             </Box>
             
+            {/* End Time TextField */} 
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
               <TextField
                 placeholder="End"
@@ -577,8 +646,8 @@ const SleepTracker: React.FC = () => {
                 onChange={(e) => setEndTime(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 sx={{ 
-                  "& .MuiInputBase-root": { height: 36 },
-                  "& .MuiInputBase-input": { py: 0.5, px: 0.75 }
+                  "& .MuiInputBase-root": { height: 32 },
+                  "& .MuiInputBase-input": { py: 0.4, px: 0.75 }
                 }}
               />
               <Typography
@@ -594,27 +663,37 @@ const SleepTracker: React.FC = () => {
                 }}
               >
                 End
-              </Typography>
+        </Typography>
             </Box>
           </Box>
           
-          {/* Action Buttons */}
-          <Stack direction="row" spacing={1}>
+          {/* Action Buttons Block */}
+          <Stack 
+            direction="row" 
+            spacing={{ xs: 0.75, sm: 0.75 }}
+            sx={{ 
+              width: isWideEnough ? 'auto' : '100%',
+              justifyContent: isWideEnough ? 'flex-end' : 'center',
+              mt: isWideEnough ? 0 : 1
+            }}
+          >
+            {/* Reset IconButton */} 
             <Tooltip title="Reset inputs">
               <IconButton
                 size="small"
                 onClick={handleResetInputs}
                 sx={{ 
-                  height: 36,
-                  width: 36,
+                  height: { xs: 30, sm: 30 },
+                  width: { xs: 30, sm: 30 },
                   color: 'text.secondary',
                   bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
                 }}
               >
-                <RestartAltIcon fontSize="small" />
+                <RestartAltIcon sx={{ fontSize: '0.9rem' }} />
               </IconButton>
             </Tooltip>
             
+            {/* Add/Update Button */} 
             <Button 
               variant="contained" 
               onClick={handleAddSleep}
@@ -622,8 +701,9 @@ const SleepTracker: React.FC = () => {
               size="small"
               sx={{ 
                 minWidth: 'auto',
-                height: 36,
-                px: 2,
+                height: 32,
+                px: { xs: 1.5, sm: 1.5 },
+                fontSize: { xs: '0.75rem', sm: '0.8125rem' },
                 borderRadius: 'var(--radius-md)'
               }}
             >
@@ -640,7 +720,7 @@ const SleepTracker: React.FC = () => {
           color: 'text.secondary',
           gap: 0.5,
           width: '100%',
-          px: 1.5,
+          px: { xs: 1, sm: 1.5 },
           mb: 0
         }}>
           <Box 
@@ -741,8 +821,8 @@ const SleepTracker: React.FC = () => {
       </Paper>
 
       {/* Enhanced History Modal */}
-      <Dialog
-        open={historyOpen}
+      <Dialog 
+        open={historyOpen} 
         onClose={handleCloseHistory}
         fullWidth
         maxWidth="sm"
@@ -759,7 +839,8 @@ const SleepTracker: React.FC = () => {
           borderBottom: '1px solid',
           borderColor: 'divider',
           pb: 1.5,
-          pt: 2
+          pt: 2,
+          px: { xs: 1.5, sm: 3 }
         }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" spacing={1} alignItems="center">
@@ -779,33 +860,33 @@ const SleepTracker: React.FC = () => {
                   '& .MuiChip-label': { px: 1 }
                 }}
               />
-              <IconButton 
+          <IconButton
                 size="small" 
                 onClick={handleCloseHistory}
-                sx={{
-                  color: 'text.secondary',
-                  '&:hover': {
-                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                    color: 'error.main'
-                  }
-                }}
-              >
-                <CloseIcon />
-              </IconButton>
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': {
+                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  color: 'error.main'
+                }
+              }}
+          >
+            <CloseIcon />
+          </IconButton>
             </Box>
           </Stack>
         </DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
+        <DialogContent sx={{ py: 3, px: { xs: 1.5, sm: 3 } }}>
           <Box mb={2}>
             <Stack spacing={2.5}>
               {/* Sleep statistics and daily goal in a single row */}
-              <Grid container spacing={2}>
-                {/* Sleep Statistics - 60% width */}
-                <Grid item xs={12} md={7}>
+              <Grid container spacing={1} sx={{ maxHeight: '70px', minHeight: '50px', overflow: 'hidden' }}>
+                {/* Sleep Statistics - 40% width */}
+                <Grid item xs={12} md={5}>
                   <Paper 
                     elevation={0} 
                     sx={{ 
-                      p: 2,
+                      p: 0.75,
                       height: '100%',
                       bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
                       borderRadius: 'var(--radius-lg)',
@@ -813,145 +894,92 @@ const SleepTracker: React.FC = () => {
                       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
                     }}
                   >
-                    <Stack spacing={1.5}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <BarChartIcon color="primary" fontSize="small" />
-                        <Typography variant="subtitle1" color="text.primary" sx={{ fontWeight: 600 }}>
-                          Sleep Statistics
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ height: '100%' }}>
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: '28%' }}>
+                        <CalendarTodayIcon color="primary" sx={{ fontSize: '0.9rem' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', fontSize: '0.8rem' }}>
+                          {dailySleepRecords.length}
                         </Typography>
                       </Stack>
                       
-                      <Grid container spacing={1.5}>
-                        <Grid item xs={4}>
-                          <Paper 
-                            elevation={0} 
-                            sx={{ 
-                              p: 1, 
-                              textAlign: 'center',
-                              height: '100%',
-                              borderRadius: 'var(--radius-md)',
-                              bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(var(--primary-rgb), 0.05)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            <CalendarTodayIcon color="primary" sx={{ fontSize: '1.25rem', opacity: 0.8 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', mt: 0.5 }}>
-                              {dailySleepRecords.length}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                              Days Tracked
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                        
-                        <Grid item xs={4}>
-                          <Paper 
-                            elevation={0} 
-                            sx={{ 
-                              p: 1, 
-                              textAlign: 'center',
-                              height: '100%',
-                              borderRadius: 'var(--radius-md)',
-                              bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(var(--primary-rgb), 0.05)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            <TimerIcon color="primary" sx={{ fontSize: '1.25rem', opacity: 0.8 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', mt: 0.5 }}>
-                              {Math.floor(getAverageSleepPerDay() / 60)}:{(getAverageSleepPerDay() % 60).toString().padStart(2, '0')}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                              Avg. Daily Sleep
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                        
-                        <Grid item xs={4}>
-                          <Paper 
-                            elevation={0} 
-                            sx={{ 
-                              p: 1, 
-                              textAlign: 'center',
-                              height: '100%',
-                              borderRadius: 'var(--radius-md)',
-                              bgcolor: isDark ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(var(--primary-rgb), 0.05)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            <CheckCircleIcon color="primary" sx={{ fontSize: '1.25rem', opacity: 0.8 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', mt: 0.5 }}>
-                              {getCompletionPercentage(getAverageSleepPerDay())}%
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                              Goal Completion
-                            </Typography>
-                          </Paper>
-                        </Grid>
-                      </Grid>
+                      <Divider orientation="vertical" flexItem sx={{ height: '70%' }} />
+                      
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: '68%' }}>
+                        <TimerIcon color="primary" sx={{ fontSize: '0.9rem' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', fontSize: '0.85rem' }}>
+                          {Math.floor(getAverageSleepPerDay() / 60)}:{(getAverageSleepPerDay() % 60).toString().padStart(2, '0')}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', ml: 0.5 }}>
+                          avg/day
+                        </Typography>
+                      </Stack>
                     </Stack>
                   </Paper>
                 </Grid>
                 
-                {/* Target setting - 40% width */}
-                <Grid item xs={12} md={5}>
+                {/* Target setting - 60% width */}
+                <Grid item xs={12} md={7}>
                   <Paper 
                     elevation={0} 
                     sx={{ 
-                      p: 2,
+                      p: 0.75,
                       height: '100%',
                       bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
                       borderRadius: 'var(--radius-lg)',
                       border: '1px solid',
                       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                       display: 'flex',
-                      flexDirection: 'column'
+                      alignItems: 'center'
                     }}
                   >
-                    <Stack spacing={1.5} sx={{ height: '100%' }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <SettingsIcon color="primary" fontSize="small" />
-                        <Typography variant="subtitle1" color="text.primary" sx={{ fontWeight: 600 }}>
-                          Daily Sleep Goal
-                        </Typography>
+                    <Stack 
+                      direction="row" 
+                      spacing={{ xs: 0.5, sm: 1 }} 
+                      alignItems="center" 
+                      justifyContent="space-between"
+                      sx={{ width: '100%', px: { xs: 0.25, sm: 0.5 } }}
+                    >
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: { xs: '12%', sm: '15%' } }}>
+                        <SettingsIcon color="primary" fontSize="small" sx={{ fontSize: '0.9rem' }} />
+                        <Typography variant="body2" color="text.primary" sx={{ fontWeight: 600, fontSize: '0.75rem', display: { xs: 'none', sm: 'block' } }}>
+                          Goal:
+            </Typography>
                       </Stack>
                       
-                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <Stack direction="row" spacing={1} alignItems="flex-start">
-                          <TextField
-                            label="Target (mins)"
-                            type="number"
-                            value={newTargetMinutes}
-                            onChange={handleTargetChange}
-                            size="small"
-                            fullWidth
-                            InputProps={{
-                              endAdornment: <InputAdornment position="end">mins</InputAdornment>,
-                            }}
-                          />
-                          <Button 
-                            variant="contained" 
-                            onClick={handleSaveTarget}
-                            sx={{ minWidth: 80 }}
-                          >
-                            Set
-                          </Button>
-                        </Stack>
-                        
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontWeight: 500 }}>
-                          {Math.floor(newTargetMinutes / 60)} hours {newTargetMinutes % 60} mins
-                        </Typography>
+                      <TextField
+                        placeholder="Minutes"
+                        type="number"
+                        value={newTargetMinutes}
+                        onChange={handleTargetChange}
+                        size="small"
+                        sx={{ 
+                          width: { xs: '33%', sm: '30%' },
+                          "& .MuiInputBase-root": { height: 30, fontSize: '0.8rem' }
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <Box component="span" sx={{ fontSize: '0.7rem', whiteSpace: 'nowrap', color: 'text.secondary' }}>
+                              min
+              </Box>
+                          ),
+                        }}
+                      />
+                      
+                      <Box sx={{ width: { xs: '30%', sm: '25%' }, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                          {Math.floor(newTargetMinutes / 60)}h {newTargetMinutes % 60}m
+            </Typography>
+          </Box>
+                      
+                      <Box sx={{ width: { xs: '23%', sm: '25%' }, display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button 
+                          variant="contained" 
+                          onClick={handleSaveTarget}
+                          size="small"
+                          sx={{ minWidth: { xs: 40, sm: 50 }, height: 28, fontSize: '0.75rem', width: { xs: '95%', sm: '90%' } }}
+                        >
+                          Save
+                        </Button>
                       </Box>
                     </Stack>
                   </Paper>
@@ -963,7 +991,7 @@ const SleepTracker: React.FC = () => {
                 <Paper 
                   elevation={0} 
                   sx={{ 
-                    p: 2.5,
+                    p: { xs: 1.5, sm: 2.5 },
                     bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
                     borderRadius: 'var(--radius-lg)',
                     border: '1px solid',
@@ -974,7 +1002,7 @@ const SleepTracker: React.FC = () => {
                     <Stack direction="row" spacing={1} alignItems="center">
                       <HistoryIcon color="primary" fontSize="small" />
                       <Typography variant="subtitle1" color="text.primary" sx={{ fontWeight: 600 }}>
-                        Daily Sleep Records
+                        Sleep Entries by Day
                       </Typography>
                     </Stack>
                     
@@ -997,7 +1025,8 @@ const SleepTracker: React.FC = () => {
                           <AccordionSummary
                             expandIcon={<ExpandMoreIcon sx={{ color: 'text.secondary' }} />}
                             sx={{
-                              px: 2,
+                              px: { xs: 1, sm: 2 },
+                              py: 0.75,
                               borderTopLeftRadius: 'var(--radius-md)',
                               borderTopRightRadius: 'var(--radius-md)',
                               bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
@@ -1010,9 +1039,9 @@ const SleepTracker: React.FC = () => {
                               direction="row" 
                               justifyContent="space-between" 
                               alignItems="center" 
-                              sx={{ width: '100%', pr: 1 }}
+                              sx={{ width: '100%', pr: { xs: 0, sm: 1 } }}
                             >
-                              <Stack direction="row" spacing={1} alignItems="center">
+                              <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
                                 <BedtimeIcon 
                                   fontSize="small" 
                                   sx={{ 
@@ -1022,19 +1051,20 @@ const SleepTracker: React.FC = () => {
                                 />
                                 <Typography variant="body1" sx={{ fontWeight: 600 }}>
                                   {formatDate(record.date)}
-                                </Typography>
+                </Typography>
                               </Stack>
                               
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
                                 <Chip 
                                   size="small"
                                   label={getHumanReadableSleepTime(record.totalMinutes)}
                                   sx={{ 
-                                    height: 22,
+                                    height: { xs: 20, sm: 22 },
+                                    fontSize: { xs: '0.6rem', sm: '0.65rem' },
                                     bgcolor: getSleepQuality(record.totalMinutes).color + '20',
                                     color: getSleepQuality(record.totalMinutes).color,
                                     fontWeight: 600,
-                                    '& .MuiChip-label': { px: 1 }
+                                    '& .MuiChip-label': { px: { xs: 0.5, sm: 1 } }
                                   }}
                                 />
                                 <IconButton 
@@ -1058,63 +1088,65 @@ const SleepTracker: React.FC = () => {
                             </Stack>
                           </AccordionSummary>
                           <AccordionDetails sx={{ p: 0, bgcolor: 'transparent' }}>
-                            <Box sx={{ px: 2, py: 1.5 }}>
-                              <Stack spacing={1.5}>
+                            <Box sx={{ px: { xs: 1, sm: 2 }, py: 1 }}>
+                              <Stack spacing={1}>
                                 {record.entries.map((entry) => (
                                   <Paper 
                                     key={entry.id} 
                                     elevation={0}
                                     sx={{ 
-                                      p: 1.5,
-                                      pl: 2, 
+                                      p: { xs: 0.75, sm: 1 },
+                                      pl: { xs: 1, sm: 1.5 }, 
                                       borderRadius: 'var(--radius-md)',
                                       bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
                                       borderLeft: '3px solid',
-                                      borderColor: 'primary.main'
+                                      borderColor: getSleepQuality(parseDuration(entry.duration)).color
                                     }}
                                   >
                                     <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                      <Stack spacing={0.5}>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                          {format(new Date(entry.startDate), 'h:mm a')} - {format(new Date(entry.endDate), 'h:mm a')}
-                                        </Typography>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                          <TimerIcon sx={{ fontSize: '0.85rem', color: 'text.secondary' }} />
-                                          <Typography variant="body2" color="text.secondary">
-                                            {Math.floor(parseDuration(entry.duration) / 60)}h {parseDuration(entry.duration) % 60}m
+                                      <Stack direction="row" spacing={{ xs: 1, sm: 2 }} alignItems="center">
+                                        <Box>
+                                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>
+                                            {format(new Date(entry.startDate), 'h:mm a')} - {format(new Date(entry.endDate), 'h:mm a')}
                                           </Typography>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <TimerIcon sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' }, color: 'text.secondary' }} />
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem' } }}>
+                                              {Math.floor(parseDuration(entry.duration) / 60)}h {parseDuration(entry.duration) % 60}m
+                                            </Typography>
+                                          </Box>
                                         </Box>
                                       </Stack>
                                       
-                                      <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                        <IconButton 
-                                          size="small" 
+                                      <Box sx={{ display: 'flex', gap: { xs: 0.3, sm: 0.5 } }}>
+                      <IconButton 
+                        size="small" 
                                           onClick={() => handleEdit(entry.id)}
-                                          sx={{ 
-                                            p: 0.5,
-                                            color: 'primary.main',
-                                            width: 28,
-                                            height: 28,
+                        sx={{ 
+                                            p: { xs: 0.3, sm: 0.5 },
+                          color: 'primary.main',
+                                            width: { xs: 20, sm: 24 },
+                                            height: { xs: 20, sm: 24 },
                                             bgcolor: 'rgba(var(--primary-rgb), 0.1)',
                                             '&:hover': { bgcolor: 'rgba(var(--primary-rgb), 0.2)' }
-                                          }}
-                                        >
-                                          <EditIcon sx={{ fontSize: '1rem' }} />
-                                        </IconButton>
-                                        <IconButton
-                                          size="small"
+                        }}
+                      >
+                                          <EditIcon sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' } }} />
+                  </IconButton>
+                      <IconButton 
+                        size="small" 
                                           onClick={() => handleDelete(entry.id)}
                                           sx={{ 
-                                            p: 0.5,
+                                            p: { xs: 0.3, sm: 0.5 },
                                             color: 'error.main',
-                                            width: 28,
-                                            height: 28,
+                                            width: { xs: 20, sm: 24 },
+                                            height: { xs: 20, sm: 24 },
                                             bgcolor: 'rgba(255,0,0,0.1)',
                                             '&:hover': { bgcolor: 'rgba(255,0,0,0.2)' }
                                           }}
                                         >
-                                          <DeleteIcon sx={{ fontSize: '1rem' }} />
-                                        </IconButton>
+                                          <DeleteIcon sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' } }} />
+                  </IconButton>
                                       </Box>
                                     </Stack>
                                   </Paper>
@@ -1143,14 +1175,14 @@ const SleepTracker: React.FC = () => {
                   <Typography color="text.secondary">No sleep history found</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                     Add your sleep times to start tracking
-                  </Typography>
+              </Typography>
                 </Paper>
               )}
               
               {/* Add space at bottom */}
               <Box sx={{ height: 16 }} />
             </Stack>
-          </Box>
+            </Box>
         </DialogContent>
       </Dialog>
     </Box>

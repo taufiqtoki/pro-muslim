@@ -72,18 +72,19 @@ export const Home: React.FC = () => {
         elevation={1}
         sx={{ 
           bgcolor: theme.palette.background.paper,
-          height: '60px',
+          height: '50px',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
           borderBottom: 'none',
-          borderColor: 'divider'
+          borderColor: 'divider',
+          alignItems: "center"
         }}
       >
         <Container maxWidth="lg">
           <Toolbar 
             disableGutters 
             sx={{ 
-              minHeight: '60px !important',
+              minHeight: '50px !important',
               px: { xs: 0.75, sm: 1 },
               py: 0.5
             }}
@@ -110,8 +111,7 @@ export const Home: React.FC = () => {
                   height: 42,
                   objectFit: 'contain',
                   alignSelf: 'center',
-                  mb : 1.5
-                  
+                  mt: -1
                 }}
               />
               <Typography 
@@ -204,11 +204,12 @@ export const Home: React.FC = () => {
                   variant="contained"
                   sx={{ 
                     color: 'white',
-                    mr: 1,
+                    mr: { xs: 0.5, sm: 1 },
                     borderRadius: 'var(--radius-pill)',
                     textTransform: 'none',
-                    px: 3,
-                    py: 1,
+                    px: { xs: 1.5, sm: 2 },
+                    py: { xs: 0.5, sm: 0.75 },
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
                     boxShadow: 'none',
                     '&:hover': {
                       boxShadow: 'var(--shadow-sm)'
@@ -225,10 +226,10 @@ export const Home: React.FC = () => {
                 onClick={toggleTheme}
                 sx={{ 
                   color: 'text.primary',
-                  mr: 1,
+                  mr: { xs: 0.25, sm: 0.5 },
                   borderRadius: 'var(--radius-md)',
-                  width: 40,
-                  height: 40,
+                  width: { xs: 36, sm: 40 },
+                  height: { xs: 36, sm: 40 },
                   transition: 'var(--transition-normal)'
                 }}
               >
@@ -242,8 +243,8 @@ export const Home: React.FC = () => {
                 sx={{ 
                   color: 'text.primary',
                   borderRadius: 'var(--radius-md)',
-                  width: 40,
-                  height: 40,
+                  width: { xs: 36, sm: 40 },
+                  height: { xs: 36, sm: 40 },
                   transition: 'var(--transition-normal)'
                 }}
               >
@@ -260,7 +261,7 @@ export const Home: React.FC = () => {
           component="main" 
           className="content custom-scrollbar fade-in"
           sx={{ 
-            pb: 10,
+            pb: 2,
             pt: 2,
             overflow: 'hidden'
           }}

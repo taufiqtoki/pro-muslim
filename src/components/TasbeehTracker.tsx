@@ -45,12 +45,9 @@ const EmptyTasbeehList = ({ onAddClick }: { onAddClick: () => void }) => (
   <Box 
     sx={{ 
       textAlign: 'center', 
-      p: 1.5, 
+      p: 1, 
       borderRadius: 'var(--radius-md)',
       bgcolor: 'background.paper',
-      border: '1px dashed',
-      borderColor: 'divider',
-      height: '90px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -98,8 +95,7 @@ const TasbeehItem: React.FC<{ tasbeeh: TasbeehWithGoal; onOpenCounter: (tasbeeh:
       elevation={0}
       sx={{
         width: '100%',
-        p: 0.75,
-        mb: 0.75,
+        p: 0.50,
         borderRadius: 'var(--radius-md)',
         border: '1px solid',
         borderColor: 'divider',
@@ -297,19 +293,10 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
   }, [newTasbeehName, tasbeehItems, onlineStatus, user, handleCloseDialog, newTasbeehGoal]);
 
   const handleOpenCounter = useCallback((tasbeeh: TasbeehWithGoal) => {
-    // Save the current state to local storage before navigating
-    saveToStorage(STORAGE_KEYS.TASBEEHS, tasbeehItems);
-    
-    // Navigate to the counter route with tasbeeh data
-    navigate(`/tasbeeh-counter/${tasbeeh.id}`, { 
-      state: { 
-        tasbeeh: tasbeeh.name, 
-        goal: tasbeeh.goal || 33,
-        id: tasbeeh.id,
-        currentCount: tasbeeh.count
-      } 
-    });
-  }, [navigate, tasbeehItems]);
+    // Set selected tasbeeh and open counter dialog
+    setSelectedTasbeeh(tasbeeh);
+    setCounterOpen(true);
+  }, []);
 
   const handleCloseCounter = useCallback(async (count: number) => {
     if (!selectedTasbeeh) {
@@ -320,30 +307,30 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
     setIsSaving(true);
     
     try {
-      const updatedCount = selectedTasbeeh.count + count;
-      const updatedTasbeeh = { ...selectedTasbeeh, count: updatedCount };
+      // Update local state with the final count from the counter
+      const updatedTasbeeh = { ...selectedTasbeeh, count: count };
       
-      // Update local state and storage first
+      // Update local state and storage
       const updatedItems = tasbeehItems.map(t => 
         t.id === selectedTasbeeh.id ? updatedTasbeeh : t
       );
       setTasbeehItems(updatedItems);
       saveToStorage(STORAGE_KEYS.TASBEEHS, updatedItems);
       
-      // If online and user is logged in, try to update Firestore but don't block on errors
+      // If online and user is logged in, try to update Firestore
       if (onlineStatus && user) {
         try {
-          await updateDoc(doc(db, `users/${user.uid}/tasbeehs`, selectedTasbeeh.id), {
-            count: increment(count)
+          await updateDoc(doc(db, `users/${user.uid}/tasbeehs/list`), {
+            items: updatedItems
           });
         } catch (firebaseError) {
           console.warn('Firebase error (continuing with local storage):', firebaseError);
-          // Silently continue with local storage only
+          // Continue with local storage only
         }
       }
       
-      if (count > 0) {
-        setSuccess(`${count} tasbeeh count updated`);
+      if (count > selectedTasbeeh.count) {
+        setSuccess(`Tasbeeh count updated to ${count}`);
         setTimeout(() => setSuccess(null), 3000);
       }
     } catch (error) {
@@ -368,50 +355,32 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
       return <EmptyTasbeehList onAddClick={handleOpenDialog} />;
     }
 
-    // Only show the first 3 tasbeehs
-    const displayedTasbeehs = tasbeehItems.slice(0, 3);
-    const remainingCount = tasbeehItems.length - 3;
-
     return (
       <Box sx={{ 
         width: '100%', 
-        height: '90px',
-        overflow: 'hidden',
-        scrollbarWidth: 'none',
-        '&::-webkit-scrollbar': {
-          display: 'none',
-        }
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}>
-        <Box>
-          {displayedTasbeehs.map((tasbeeh) => (
+        <Box sx={{
+          flexGrow: 1,
+          overflowY: 'auto',
+          '&::-webkit-scrollbar': { 
+            width: '4px'
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: 'rgba(var(--primary-rgb), 0.4)',
+            borderRadius: '4px'
+          }
+        }}>
+          {tasbeehItems.map((tasbeeh) => (
             <TasbeehItem
               key={tasbeeh.id}
               tasbeeh={tasbeeh}
               onOpenCounter={handleOpenCounter}
             />
           ))}
-          
-          {remainingCount > 0 && (
-            <Box 
-        sx={{ 
-                width: '100%', 
-                p: 0.5, 
-                textAlign: 'center',
-                color: 'primary.main',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                borderRadius: 'var(--radius-md)',
-                border: '1px dashed',
-                borderColor: 'divider',
-                '&:hover': {
-                  bgcolor: 'rgba(var(--primary-rgb), 0.05)'
-                }
-              }}
-              onClick={goToSettings}
-            >
-              +{remainingCount} more
-            </Box>
-          )}
         </Box>
     </Box>
   );
@@ -478,7 +447,7 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
       {error && (
         <Alert 
           severity="error" 
-          sx={{ 
+            sx={{ 
             mb: 0.5, 
             py: 0, 
             px: 1,
@@ -518,71 +487,12 @@ const TasbeehTracker: React.FC<TasbeehTrackerProps> = ({ initialTasbeehs = [] })
        tasbeehsError && !tasbeehItems.length ? errorComponent :
        TasbeehTrackerContent}
 
-      {/* Add Tasbeeh Dialog */}
-      <Dialog 
-        open={openDialog} 
-        onClose={handleCloseDialog}
-        PaperProps={{
-          sx: {
-            borderRadius: 'var(--radius-md)',
-            width: '100%',
-            maxWidth: 400
-          }
-        }}
-      >
-        <DialogTitle>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            Add New Tasbeeh
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Tasbeeh Name"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newTasbeehName}
-            onChange={(e) => setNewTasbeehName(e.target.value)}
-            sx={{ 
-              mt: 0.5,
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 'var(--radius-md)'
-              }
-            }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button 
-            onClick={handleCloseDialog}
-            sx={{ 
-              borderRadius: 'var(--radius-pill)',
-              textTransform: 'none'
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleAddTasbeeh} 
-            variant="contained"
-            disabled={!newTasbeehName.trim() || isAdding}
-            startIcon={isAdding ? <CircularProgress size={16} /> : null}
-            sx={{ 
-              borderRadius: 'var(--radius-pill)',
-              textTransform: 'none'
-            }}
-          >
-            {isAdding ? 'Adding...' : 'Add'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Tasbeeh Counter Modal */}
       {selectedTasbeeh && counterOpen && (
         <TasbeehCounter
           tasbeeh={selectedTasbeeh.name}
           goal={selectedTasbeeh.goal || 33}
+          initialCount={selectedTasbeeh.count}
           onClose={handleCloseCounter}
         />
       )}
