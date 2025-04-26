@@ -514,7 +514,7 @@ const SleepTracker: React.FC = () => {
         elevation={0} 
         sx={{ 
           borderRadius: 2,
-          background: isDark ? 'rgba(18, 18, 18, 0.4)' : 'rgba(255, 255, 255, 0.6)',
+          background: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)',
           height: '100%',
           width: '100%',
           display: 'flex',
@@ -549,7 +549,7 @@ const SleepTracker: React.FC = () => {
             />
             <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
               Sleep | {getHumanReadableSleepTime()}
-            </Typography>
+        </Typography>
           </Stack>
           
           <Stack direction="row" spacing={0.5} alignItems="center">
@@ -560,7 +560,7 @@ const SleepTracker: React.FC = () => {
                 height: 20,
                 fontSize: '0.65rem',
                 color: getSleepQuality().color,
-                bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                bgcolor: isDark ? 'rgb(0,0,0)' : 'white',
                 fontWeight: 600
               }}
             />
@@ -606,14 +606,14 @@ const SleepTracker: React.FC = () => {
           }}>
             {/* Start Time TextField */} 
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
-              <TextField
+          <TextField
                 placeholder="Start"
-                type="time"
+            type="time"
                 size="small"
-                fullWidth
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+            fullWidth
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
                 sx={{ 
                   "& .MuiInputBase-root": { height: 32 },
                   "& .MuiInputBase-input": { py: 0.4, px: 0.75 }
@@ -625,7 +625,7 @@ const SleepTracker: React.FC = () => {
                   position: 'absolute',
                   top: -8,
                   left: 8,
-                  backgroundColor: isDark ? 'rgba(18, 18, 18, 0.8)' : 'white',
+                  backgroundColor: isDark ? 'rgb(0, 0, 0)' : 'white',
                   px: 0.5,
                   fontSize: '0.7rem',
                   color: 'text.secondary'
@@ -637,14 +637,14 @@ const SleepTracker: React.FC = () => {
             
             {/* End Time TextField */} 
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
-              <TextField
+          <TextField
                 placeholder="End"
-                type="time"
+            type="time"
                 size="small"
-                fullWidth
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+            fullWidth
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
                 sx={{ 
                   "& .MuiInputBase-root": { height: 32 },
                   "& .MuiInputBase-input": { py: 0.4, px: 0.75 }
@@ -656,7 +656,7 @@ const SleepTracker: React.FC = () => {
                   position: 'absolute',
                   top: -8,
                   left: 8,
-                  backgroundColor: isDark ? 'rgba(18, 18, 18, 0.8)' : 'white',
+                  backgroundColor: isDark ? 'rgb(0, 0, 0)' : 'white',
                   px: 0.5,
                   fontSize: '0.7rem',
                   color: 'text.secondary'
@@ -694,23 +694,23 @@ const SleepTracker: React.FC = () => {
             </Tooltip>
             
             {/* Add/Update Button */} 
-            <Button 
-              variant="contained" 
-              onClick={handleAddSleep}
-              disabled={!startTime || !endTime}
-              size="small"
-              sx={{ 
-                minWidth: 'auto',
+          <Button 
+            variant="contained" 
+            onClick={handleAddSleep}
+            disabled={!startTime || !endTime}
+            size="small"
+            sx={{ 
+              minWidth: 'auto',
                 height: 32,
                 px: { xs: 1.5, sm: 1.5 },
                 fontSize: { xs: '0.75rem', sm: '0.8125rem' },
-                borderRadius: 'var(--radius-md)'
-              }}
-            >
-              {editIndex !== null ? 'Update' : 'Add'}
-            </Button>
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            {editIndex !== null ? 'Update' : 'Add'}
+          </Button>
           </Stack>
-        </Box>
+      </Box>
 
         {/* Quick Action Links */}
         <Box sx={{ 
@@ -740,7 +740,7 @@ const SleepTracker: React.FC = () => {
               borderRadius: 'var(--radius-md)',
               '&:hover': { 
                 color: 'primary.main',
-                bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)'
+                bgcolor: isDark ? 'rgb(0,0,0)' : 'rgba(0,0,0,0.1)'
               },
               transition: 'all 0.2s',
               whiteSpace: 'nowrap'
@@ -799,7 +799,7 @@ const SleepTracker: React.FC = () => {
               borderRadius: 'var(--radius-md)',
               '&:hover': { 
                 color: 'error.main',
-                bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)'
+                bgcolor: isDark ? 'rgb(0,0,0)' : 'rgba(0,0,0,0.1)'
               },
               transition: 'all 0.2s',
               whiteSpace: 'nowrap'
@@ -829,7 +829,7 @@ const SleepTracker: React.FC = () => {
         PaperProps={{
           sx: {
             borderRadius: 'var(--radius-lg)',
-            background: isDark ? 'rgba(18, 18, 18, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            background: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)',
             backdropFilter: 'blur(10px)',
             overflow: 'hidden'
           }
@@ -888,7 +888,7 @@ const SleepTracker: React.FC = () => {
                     sx={{ 
                       p: 0.75,
                       height: '100%',
-                      bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
+                      bgcolor: isDark ? 'rgb(0,0,0)' : 'rgb(255,255,255)',
                       borderRadius: 'var(--radius-lg)',
                       border: '1px solid',
                       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
@@ -924,7 +924,7 @@ const SleepTracker: React.FC = () => {
                     sx={{ 
                       p: 0.75,
                       height: '100%',
-                      bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
+                      bgcolor: isDark ? 'rgb(0,0,0)' : 'rgb(255,255,255)',
                       borderRadius: 'var(--radius-lg)',
                       border: '1px solid',
                       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
@@ -992,7 +992,7 @@ const SleepTracker: React.FC = () => {
                   elevation={0} 
                   sx={{ 
                     p: { xs: 1.5, sm: 2.5 },
-                    bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
+                    bgcolor: isDark ? 'rgb(0,0,0)' : 'rgb(255,255,255)',
                     borderRadius: 'var(--radius-lg)',
                     border: '1px solid',
                     borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
@@ -1029,9 +1029,9 @@ const SleepTracker: React.FC = () => {
                               py: 0.75,
                               borderTopLeftRadius: 'var(--radius-md)',
                               borderTopRightRadius: 'var(--radius-md)',
-                              bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                              bgcolor: isDark ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.02)',
                               '&:hover': {
-                                bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+                                bgcolor: isDark ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.03)'
                               }
                             }}
                           >
@@ -1098,7 +1098,7 @@ const SleepTracker: React.FC = () => {
                                       p: { xs: 0.75, sm: 1 },
                                       pl: { xs: 1, sm: 1.5 }, 
                                       borderRadius: 'var(--radius-md)',
-                                      bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                                      bgcolor: isDark ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.02)',
                                       borderLeft: '3px solid',
                                       borderColor: getSleepQuality(parseDuration(entry.duration)).color
                                     }}
@@ -1164,7 +1164,7 @@ const SleepTracker: React.FC = () => {
                   elevation={0} 
                   sx={{ 
                     p: 4,
-                    bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.9)',
+                    bgcolor: isDark ? 'rgb(0,0,0)' : 'rgb(255,255,255)',
                     borderRadius: 'var(--radius-lg)',
                     textAlign: 'center',
                     border: '1px solid',

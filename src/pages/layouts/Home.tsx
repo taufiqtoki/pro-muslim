@@ -71,7 +71,7 @@ export const Home: React.FC = () => {
         position="sticky" 
         elevation={1}
         sx={{ 
-          bgcolor: theme.palette.background.paper,
+          bgcolor: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)',
           height: '50px',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
@@ -170,6 +170,7 @@ export const Home: React.FC = () => {
                       borderRadius: 'var(--radius-md)',
                       backdropFilter: 'blur(10px)',
                       WebkitBackdropFilter: 'blur(10px)',
+                      bgcolor: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)'
                     }
                   }}
                   transformOrigin={{ horizontal: 'right', vertical: 'top' }}
@@ -263,7 +264,8 @@ export const Home: React.FC = () => {
           sx={{ 
             pb: 2,
             pt: 2,
-            overflow: 'hidden'
+            overflow: 'hidden',
+            bgcolor: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)'
           }}
         >
           <Outlet />

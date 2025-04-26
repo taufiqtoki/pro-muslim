@@ -211,7 +211,7 @@ const Calculator: React.FC = () => {
       elevation={4}
       sx={{ 
         p: 2.5, 
-        bgcolor: isDark ? 'grey.900' : 'background.paper', 
+        bgcolor: isDark ? '0,0,0' : 'background.paper', 
         borderRadius: 3,
         maxWidth: '350px', 
         position: 'relative',

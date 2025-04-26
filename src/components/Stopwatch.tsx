@@ -24,19 +24,20 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import PauseIcon from '@mui/icons-material/Pause';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import TimerIcon from '@mui/icons-material/Timer';
-import AlarmIcon from '@mui/icons-material/Alarm';
-import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import CloseIcon from '@mui/icons-material/Close';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import AlarmIcon from '@mui/icons-material/Alarm';
 import Calculator from './Calculator.tsx';
 import Timer from './Timer.tsx';
+import AlarmClock from './AlarmClock.tsx';
 import { useStopwatch } from '../contexts/StopwatchContext.tsx';
 import { useTheme } from '../contexts/ThemeContext.tsx';
 
 const Stopwatch: React.FC = () => {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [isAlarmClockOpen, setIsAlarmClockOpen] = useState(false);
   const [infoAnchorEl, setInfoAnchorEl] = useState<HTMLElement | null>(null);
   const navigate = useNavigate();
   const { time, isRunning, isStopped, handlePlayPause, handleStop, handleReset } = useStopwatch();
@@ -56,7 +57,7 @@ const Stopwatch: React.FC = () => {
   const handleKeyPress = (event: KeyboardEvent) => {
     // Only handle key events when the stopwatch component is focused/visible
     // Check if we're in a dialog or if the event happened elsewhere
-    if (isCalculatorOpen || isTimerOpen) {
+    if (isCalculatorOpen || isTimerOpen || isAlarmClockOpen) {
       return;
     }
     
@@ -81,7 +82,7 @@ const Stopwatch: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [isCalculatorOpen, isTimerOpen]); // Add dependencies to ensure we re-evaluate when modals open/close
+  }, [isCalculatorOpen, isTimerOpen, isAlarmClockOpen]); // Added isAlarmClockOpen
 
   const handleInfoClick = (event: React.MouseEvent<HTMLElement>) => {
     setInfoAnchorEl(event.currentTarget);
@@ -106,7 +107,7 @@ const Stopwatch: React.FC = () => {
         {/* Main Content with Divider */}
         <Stack 
           direction="row" 
-          spacing={ { xs: 0.5, sm: 1 } }
+          spacing={ { xs: 1.5, sm: 2 } }
           divider={<Divider orientation="vertical" flexItem />}
           alignItems="center"
           sx={{ flexGrow: 1, m: 0, p: 0 }}
@@ -114,10 +115,10 @@ const Stopwatch: React.FC = () => {
           {/* Main time display */}
           <Box sx={{ 
             textAlign: 'center', 
-            width: { xs: '80%', sm: '75%' },
+            width: { xs: '75%', sm: '75%' },
             flexShrink: 1,
             p: 0,
-            m: 0
+            mx: 0
           }}>
         <Typography 
               variant="h1" 
@@ -206,32 +207,11 @@ const Stopwatch: React.FC = () => {
             justifyContent: 'center',
             gap: 0.5,
             pb: 0,
-            m: 0,
+            mx: 0,
             borderRadius: 'var(--radius-md)',
             width: { xs: 'auto', sm: 'auto' },
             flexShrink: 0
           }}>
-            <Tooltip title="Alarm">
-              <IconButton
-                onClick={() => navigate('/alarm')}
-                size="small"
-                sx={{ 
-                  p: { xs: 0.25, sm: 0.5 },
-                  bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
-                  color: 'text.secondary',
-                  '&:hover': {
-                    bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                    color: 'primary.main'
-                  },
-                  width: 34,
-                  height: 34,
-                  minWidth: 'auto'
-                }}
-              >
-                <AlarmIcon sx={{ fontSize: '1.5rem' }} />
-              </IconButton>
-            </Tooltip>
-            
             <Tooltip title="Calculator">
               <IconButton
                 onClick={() => setIsCalculatorOpen(true)}
@@ -271,6 +251,27 @@ const Stopwatch: React.FC = () => {
                 }}
               >
                 <TimerIcon sx={{ fontSize: '1.5rem' }} />
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title="Alarm Clock">
+              <IconButton
+                onClick={() => setIsAlarmClockOpen(true)}
+                size="small"
+                sx={{ 
+                  p: { xs: 0.25, sm: 0.5 },
+                  bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    color: 'primary.main'
+                  },
+                  width: 34,
+                  height: 34,
+                  minWidth: 'auto'
+                }}
+              >
+                <AlarmIcon sx={{ fontSize: '1.5rem' }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -314,6 +315,7 @@ const Stopwatch: React.FC = () => {
         </Box>
       </Popover>
 
+      {/* Calculator Dialog */}
       <Dialog 
         open={isCalculatorOpen} 
         onClose={() => setIsCalculatorOpen(false)} 
@@ -351,6 +353,7 @@ const Stopwatch: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Timer Dialog */}
       <Dialog 
         open={isTimerOpen} 
         onClose={() => setIsTimerOpen(false)} 
@@ -387,6 +390,14 @@ const Stopwatch: React.FC = () => {
           <Timer />
         </DialogContent>
       </Dialog>
+
+      {/* Alarm Clock Dialog */}
+      {isAlarmClockOpen && (
+        <AlarmClock 
+          isModal={true} 
+          onClose={() => setIsAlarmClockOpen(false)} 
+        />
+      )}
     </>
   );
 };

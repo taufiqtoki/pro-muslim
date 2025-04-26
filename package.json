@@ -2,6 +2,26 @@
   "name": "pro-muslim",
   "version": "0.1.0",
   "private": true,
+  "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
+  "homepage": "https://github.com/taufiqtoki/pro-muslim#readme",
+  "bugs": {
+    "url": "https://github.com/taufiqtoki/pro-muslim/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taufiqtoki/pro-muslim.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "deploy": "npm run build && firebase deploy --only hosting"
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
@@ -32,12 +52,21 @@
     "recharts": "^2.15.1",
     "web-vitals": "^2.1.4"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "deploy": "npm run build && firebase deploy --only hosting"
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@types/firebase": "^2.4.32",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.13.14",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "@types/react-window": "^1.8.8",
+    "@types/recharts": "^1.8.29",
+    "autoprefixer": "^10.4.21",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.0.12",
+    "typescript": "^5.8.2"
   },
   "eslintConfig": {
     "extends": [
@@ -56,21 +85,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.2.0",
-    "@types/firebase": "^2.4.32",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.13.14",
-    "@types/react": "^19.0.12",
-    "@types/react-dom": "^19.0.4",
-    "@types/react-window": "^1.8.8",
-    "@types/recharts": "^1.8.29",
-    "autoprefixer": "^10.4.21",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^4.0.12",
-    "typescript": "^5.8.2"
   }
 }

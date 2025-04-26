@@ -161,7 +161,7 @@ const TasbeehCounter: React.FC<TasbeehCounterProps> = ({ tasbeeh, goal, initialC
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: themeStyles.color }}>
           <Box>
             <Typography variant="h6" component="div" sx={{ fontWeight: 600, color: themeStyles.color }}>
-              {tasbeeh}
+        {tasbeeh}
             </Typography>
             <Typography variant="caption" sx={{ color: themeStyles.color, opacity: 0.8 }}>
               Goal: {goal}
@@ -195,14 +195,14 @@ const TasbeehCounter: React.FC<TasbeehCounterProps> = ({ tasbeeh, goal, initialC
               {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
             </IconButton>
             
-            <IconButton
-              aria-label="close"
-              onClick={() => onClose(count)}
+        <IconButton
+          aria-label="close"
+          onClick={() => onClose(count)}
               sx={{ color: themeStyles.color }}
-            >
-            </IconButton>
+        >
+        </IconButton>
           </Box>
-        </DialogTitle>
+      </DialogTitle>
 
         {showCompletionAlert && (
           <Alert 
@@ -238,12 +238,12 @@ const TasbeehCounter: React.FC<TasbeehCounterProps> = ({ tasbeeh, goal, initialC
 
         <Box
           onClick={handleIncrement}
-          sx={{
+          sx={{ 
             flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
             cursor: 'pointer',
             userSelect: 'none',
             transition: 'background-color 0.2s',
@@ -291,7 +291,7 @@ const TasbeehCounter: React.FC<TasbeehCounterProps> = ({ tasbeeh, goal, initialC
           
           <Button 
             onClick={handleDecrement} 
-            variant="contained"
+            variant="contained" 
             disabled={count === 0}
             sx={{ 
               borderRadius: 'var(--radius-pill)',
@@ -322,8 +322,8 @@ const TasbeehCounter: React.FC<TasbeehCounterProps> = ({ tasbeeh, goal, initialC
             }}
           >
             Done
-          </Button>
-        </DialogActions>
+        </Button>
+      </DialogActions>
       </Box>
     </Dialog>
   );

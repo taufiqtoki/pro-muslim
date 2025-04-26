@@ -18,6 +18,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { StopwatchProvider } from './contexts/StopwatchContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { AlarmProvider } from './contexts/AlarmContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PlayerProvider } from './contexts/PlayerContext';
 import { QueueProvider } from './contexts/QueueContext';
@@ -29,34 +30,36 @@ export const App: React.FC = () => {
     <AuthProvider>
       <ThemeProvider>
         <ToastProvider>
-          <PlayerProvider>
-            <QueueProvider>
-              <StopwatchProvider>
-                <DndProvider backend={HTML5Backend}>
-                  <BrowserRouter>
-                    <ErrorBoundary>
-                      <Routes>
-                        <Route path="/" element={<Home />}>
-                          <Route index element={<HomeTab />} />
-                          <Route path="works" element={<WorksTab />} />
-                          <Route path="agenda" element={<AgendaTab />} />
-                          <Route path="routine" element={<RoutineTab />} />
-                          <Route path="routine/settings" element={<RoutineSettings />} />
-                          <Route path="bucket" element={<BucketTab />} />
-                          <Route path="profile" element={<Profile />} />
-                          <Route path="report" element={<Report />} />
-                          <Route path="settings" element={<Settings />} />
-                          <Route path="player" element={<AudioPlayer />} />
-                          <Route path="alarm" element={<AlarmClock />} />
-                        </Route>
-                        <Route path="/tasbeeh-counter/:id" element={<TasbeehCounterRoute />} />
-                      </Routes>
-                    </ErrorBoundary>
-                  </BrowserRouter>
-                </DndProvider>
-              </StopwatchProvider>
-            </QueueProvider>
-          </PlayerProvider>
+          <AlarmProvider>
+            <PlayerProvider>
+              <QueueProvider>
+                <StopwatchProvider>
+                  <DndProvider backend={HTML5Backend}>
+                    <BrowserRouter>
+                      <ErrorBoundary>
+                        <Routes>
+                          <Route path="/" element={<Home />}>
+                            <Route index element={<HomeTab />} />
+                            <Route path="works" element={<WorksTab />} />
+                            <Route path="agenda" element={<AgendaTab />} />
+                            <Route path="routine" element={<RoutineTab />} />
+                            <Route path="routine/settings" element={<RoutineSettings />} />
+                            <Route path="bucket" element={<BucketTab />} />
+                            <Route path="profile" element={<Profile />} />
+                            <Route path="report" element={<Report />} />
+                            <Route path="settings" element={<Settings />} />
+                            <Route path="player" element={<AudioPlayer />} />
+                            <Route path="alarm" element={<AlarmClock />} />
+                          </Route>
+                          <Route path="/tasbeeh-counter/:id" element={<TasbeehCounterRoute />} />
+                        </Routes>
+                      </ErrorBoundary>
+                    </BrowserRouter>
+                  </DndProvider>
+                </StopwatchProvider>
+              </QueueProvider>
+            </PlayerProvider>
+          </AlarmProvider>
         </ToastProvider>
       </ThemeProvider>
     </AuthProvider>

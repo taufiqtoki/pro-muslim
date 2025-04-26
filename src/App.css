@@ -14,7 +14,7 @@
 }
 
 .App-header {
-  background-color: var(--color-background);
+  background-color: var(--background-color);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -41,7 +41,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--color-background);
+  background-color: var(--background-color);
   color: var(--color-text-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -54,7 +54,7 @@
 .content {
   flex: 1;
   padding: var(--space-md);
-  background-color: var(--color-background);
+  background-color: var(--background-color);
 }
 
 /* Custom styled elements */

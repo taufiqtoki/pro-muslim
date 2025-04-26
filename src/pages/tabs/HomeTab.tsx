@@ -150,10 +150,10 @@ const HomeTab: React.FC = () => {
       elevation={0}
       sx={{
         height: height || 'auto',
-        background: isDark ? 'rgba(18, 18, 18, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+        background: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)',
         borderRadius: 3,
         overflow: 'hidden',
-        border: `1px solid ${isDark ? 'rgba(212, 175, 55, 0.1)' : 'rgba(0, 0, 0, 0.05)'}`,
+        border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}`,
         transition: 'transform 0.3s ease, box-shadow 0.3s ease, height 0.3s ease',
         position: 'relative',
         backdropFilter: 'blur(8px)',

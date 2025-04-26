@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState } from 'react';
 import { ThemeProvider as MuiThemeProvider, createTheme, PaletteMode } from '@mui/material';
 
 // RGB values for primary colors
-const BRIGHT_GOLD_RGB = '255, 215, 0'; // Bright gold for dark theme (more vivid)
-const BLACK_RGB = '0, 0, 0'; // Black for light theme
+const WHITE_RGB = '255, 255, 255'; // Pure white
+const BLACK_RGB = '0, 0, 0'; // Pure black
 
 interface ThemeContextType {
   isDark: boolean;
@@ -25,28 +25,28 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       mode,
       ...(mode === 'dark'
         ? {
-            // Dark theme
+            // Dark theme (Black-White)
             primary: {
-              main: '#ffd700', // Bright gold
-              light: '#ffe14d',
-              dark: '#ccac00',
+              main: '#ffffff', // Pure white
+              light: '#e0e0e0',
+              dark: '#cccccc',
             },
             secondary: {
-              main: '#ffd700', // Also bright gold for secondary
+              main: '#ffffff', // Also white for secondary
             },
             background: {
               default: '#000000', // Pure black
               paper: '#000000', // Pure black
             },
             text: {
-              primary: '#ffd700', // Bright gold
-              secondary: '#ffd700', // Bright gold but slightly faded
-              disabled: 'rgba(255, 215, 0, 0.5)', // Faded bright gold
+              primary: '#ffffff', // White
+              secondary: 'rgba(255, 255, 255, 0.7)', // White but slightly faded
+              disabled: 'rgba(255, 255, 255, 0.5)', // Faded white
             },
-            divider: 'rgba(255, 215, 0, 0.2)',
+            divider: 'rgba(255, 255, 255, 0.2)',
           }
         : {
-            // Light theme - Black and White
+            // Light theme (White-Black)
             primary: {
               main: '#000000', // Pure black
               light: '#333333',
@@ -61,7 +61,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             },
             text: {
               primary: '#000000', // Black
-              secondary: '#333333', // Slightly lighter black
+              secondary: 'rgba(0, 0, 0, 0.7)', // Slightly faded black
               disabled: 'rgba(0, 0, 0, 0.5)', // Faded black
             },
             divider: 'rgba(0, 0, 0, 0.2)',
@@ -79,7 +79,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'sans-serif',
       ].join(','),
       allVariants: {
-        color: mode === 'dark' ? '#ffd700' : '#000000', // Text color based on theme
+        color: mode === 'dark' ? '#ffffff' : '#000000', // Text color based on theme
       },
     },
     components: {
@@ -88,7 +88,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           body: {
             backgroundColor: mode === 'dark' ? '#000000' : '#ffffff',
             scrollbarColor: mode === 'dark' 
-              ? `rgba(${BRIGHT_GOLD_RGB}, 0.5) rgba(${BRIGHT_GOLD_RGB}, 0.1)` 
+              ? `rgba(${WHITE_RGB}, 0.5) rgba(${WHITE_RGB}, 0.1)` 
               : `rgba(${BLACK_RGB}, 0.5) rgba(${BLACK_RGB}, 0.1)`,
           },
         },
@@ -101,22 +101,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           containedPrimary: {
             color: mode === 'dark' ? '#000000' : '#ffffff', // Text color contrast
             '&:hover': {
-              backgroundColor: mode === 'dark' ? '#ffe14d' : '#333333',
+              backgroundColor: mode === 'dark' ? '#e0e0e0' : '#333333',
             },
           },
           outlinedPrimary: {
-            borderColor: mode === 'dark' ? '#ffd700' : '#000000',
+            borderColor: mode === 'dark' ? '#ffffff' : '#000000',
             '&:hover': {
-              borderColor: mode === 'dark' ? '#ffe14d' : '#333333',
+              borderColor: mode === 'dark' ? '#e0e0e0' : '#333333',
               backgroundColor: mode === 'dark' 
-                ? 'rgba(255, 215, 0, 0.08)' 
+                ? 'rgba(255, 255, 255, 0.08)' 
                 : 'rgba(0, 0, 0, 0.08)',
             },
           },
           textPrimary: {
             '&:hover': {
               backgroundColor: mode === 'dark' 
-                ? 'rgba(255, 215, 0, 0.08)' 
+                ? 'rgba(255, 255, 255, 0.08)' 
                 : 'rgba(0, 0, 0, 0.08)',
             },
           },
@@ -138,14 +138,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         styleOverrides: {
           root: {
             backgroundColor: mode === 'dark' ? '#000000' : '#ffffff',
-            borderColor: mode === 'dark' ? 'rgba(255, 215, 0, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+            borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
           },
         },
       },
       MuiIconButton: {
         styleOverrides: {
           root: {
-            color: mode === 'dark' ? '#ffd700' : '#000000',
+            color: mode === 'dark' ? '#ffffff' : '#000000',
           },
         },
       },
@@ -153,14 +153,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         styleOverrides: {
           root: {
             '& .MuiInputLabel-root': {
-              color: mode === 'dark' ? 'rgba(255, 215, 0, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+              color: mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
             },
             '& .MuiOutlinedInput-root': {
               '& fieldset': {
-                borderColor: mode === 'dark' ? 'rgba(255, 215, 0, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
               },
               '&:hover fieldset': {
-                borderColor: mode === 'dark' ? '#ffd700' : '#000000',
+                borderColor: mode === 'dark' ? '#ffffff' : '#000000',
               },
             },
           },
@@ -183,11 +183,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   React.useEffect(() => {
     document.documentElement.style.setProperty(
       '--primary-rgb', 
-      isDark ? BRIGHT_GOLD_RGB : BLACK_RGB
+      isDark ? WHITE_RGB : BLACK_RGB
     );
     document.documentElement.style.setProperty(
       '--primary-color', 
-      isDark ? '#ffd700' : '#000000'
+      isDark ? '#ffffff' : '#000000'
     );
     document.documentElement.style.setProperty(
       '--background-color', 
